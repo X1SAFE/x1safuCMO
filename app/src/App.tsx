@@ -11,6 +11,7 @@ import {
   PhantomWalletAdapter,
   SolflareWalletAdapter,
 } from '@solana/wallet-adapter-wallets'
+import { BackpackWalletAdapter } from '@solana/wallet-adapter-backpack'
 import { Shield } from 'lucide-react'
 import '@solana/wallet-adapter-react-ui/styles.css'
 
@@ -77,6 +78,7 @@ export default function AppWithWallet() {
   const wallets  = useMemo(() => [
     new PhantomWalletAdapter(),
     new SolflareWalletAdapter(),
+    new BackpackWalletAdapter(),
   ], [])
 
   return (
