@@ -5,29 +5,30 @@ import { getAssociatedTokenAddress, createAssociatedTokenAccountInstruction, get
 import { Transaction } from '@solana/web3.js'
 import {
   ASSETS, EXPLORER, IS_TESTNET,
-  getProgram, getPutMintPDA, getReservePDA,
-  getTokenBalance, toBaseUnits
+  getProgram, getVaultPDA, getVaultTokenAccountPDA, getUserPositionPDA,
+  fetchUserPosition, toBaseUnits,
 } from '../lib/vault'
 
 export function Exit() {
   const { connection } = useConnection()
-  const wallet = useWallet()
-  const anchorWallet = useAnchorWallet()
+  const wallet         = useWallet()
+  const anchorWallet   = useAnchorWallet()
 
-  const [amount, setAmount] = useState('')
-  const [assetKey, setAssetKey] = useState('USDCX')
-  const [loading, setLoading] = useState(false)
-  const [txSig, setTxSig] = useState('')
-  const [error, setError] = useState('')
-  const [putBalance, setPutBalance] = useState(0)
+  const [amount, setAmount]           = useState('')
+  const [assetKey, setAssetKey]       = useState('USDCX')
+  const [loading, setLoading]         = useState(false)
+  const [txSig, setTxSig]             = useState('')
+  const [error, setError]             = useState('')
+  const [position, setPosition]       = useState<{ amount: number } | null>(null)
   const [showConfirm, setShowConfirm] = useState(false)
 
-  const putMint = getPutMintPDA()
   const asset = ASSETS.find(a => a.key === assetKey)!
 
   useEffect(() => {
     if (!wallet.publicKey) return
-    getTokenBalance(connection, wallet.publicKey, putMint).then(setPutBalance)
+    fetchUserPosition(connection, wallet.publicKey).then(pos => {
+      setPosition(pos ? { amount: pos.amount / 1e6 } : null)
+    })
   }, [wallet.publicKey, connection, txSig])
 
   const handleExit = async () => {
@@ -38,16 +39,19 @@ export function Exit() {
 
     try {
       const provider = new AnchorProvider(connection, anchorWallet, { commitment: 'confirmed' })
-      const program = getProgram(provider)
+      const program  = getProgram(provider)
 
-      const ownerPutAta   = await getAssociatedTokenAddress(putMint, wallet.publicKey)
-      const reserve       = getReservePDA(asset.mint)
-      const ownerAssetAta = await getAssociatedTokenAddress(asset.mint, wallet.publicKey)
+      const vault             = getVaultPDA()
+      const userPosition      = getUserPositionPDA(wallet.publicKey)
+      const userTokenAccount  = await getAssociatedTokenAddress(asset.mint, wallet.publicKey)
+      const vaultTokenAccount = getVaultTokenAccountPDA(asset.mint)
 
-      // Pre-create ownerAssetAta if needed
-      try { await getAccount(connection, ownerAssetAta) } catch {
+      // Pre-create user ATA if needed
+      try {
+        await getAccount(connection, userTokenAccount)
+      } catch {
         const preTx = new Transaction()
-        preTx.add(createAssociatedTokenAccountInstruction(wallet.publicKey, ownerAssetAta, wallet.publicKey, asset.mint))
+        preTx.add(createAssociatedTokenAccountInstruction(wallet.publicKey, userTokenAccount, wallet.publicKey, asset.mint))
         preTx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash
         preTx.feePayer = wallet.publicKey
         const signed = await wallet.signTransaction!(preTx)
@@ -55,15 +59,16 @@ export function Exit() {
         await new Promise(r => setTimeout(r, 2000))
       }
 
-      const amountBN = toBaseUnits(parseFloat(amount), 6)
+      const amountBN = toBaseUnits(parseFloat(amount), asset.decimals)
+
       const tx = await program.methods
-        .exit(amountBN)
+        .withdraw(amountBN)
         .accounts({
-          owner: wallet.publicKey,
-          assetMint: asset.mint,
-          ownerPutAta,
-          reserve,
-          ownerAssetAta,
+          user: wallet.publicKey,
+          vault,
+          userPosition,
+          userTokenAccount,
+          vaultTokenAccount,
         })
         .rpc()
 
@@ -77,102 +82,120 @@ export function Exit() {
     }
   }
 
+  if (!wallet.connected) {
+    return (
+      <div className="card" style={{ maxWidth: 480, margin: '40px auto', textAlign: 'center', padding: '40px' }}>
+        <div style={{ fontSize: '2rem', marginBottom: 12 }}>🔐</div>
+        <div style={{ color: 'var(--text-secondary)' }}>Connect wallet to exit</div>
+      </div>
+    )
+  }
+
   return (
     <div className="exit">
       <div className="card">
         <div className="card-header">
           <div>
-            <div className="card-title">Exit Position</div>
-            <div className="card-subtitle">Burn X1SAFE_PUT → receive collateral back</div>
+            <div className="card-title">🚪 Exit Position</div>
+            <div className="card-subtitle">Withdraw all collateral and close your position</div>
           </div>
         </div>
 
         <div className="info-box danger">
-          <div className="info-box-title">❗ Exit = Redeem Collateral</div>
+          <div className="info-box-title">❗ Full Exit</div>
           <div className="info-box-text">
-            Burn PUT tokens to get your original collateral back at current oracle price.
-            Select which asset you want to receive.
+            Exit will transfer your deposited collateral back to your wallet and reduce your position.
+            Select which asset to receive.
           </div>
         </div>
 
-        {wallet.connected ? (
-          <>
-            <div className="position-card">
-              <div className="position-row">
-                <span className="position-label">X1SAFE_PUT Balance</span>
-                <span className="position-value">{putBalance.toFixed(4)} PUT</span>
-              </div>
-            </div>
+        {/* Position */}
+        <div className="position-card" style={{ marginBottom: 20 }}>
+          <div className="position-row">
+            <span className="position-label">Your Position (USD)</span>
+            <span className="position-value" style={{ color: position ? '#ef4444' : 'var(--text-muted)' }}>
+              {position ? `$${position.amount.toFixed(2)}` : 'No position'}
+            </span>
+          </div>
+        </div>
 
-            <div className="form-group">
-              <label className="form-label">Receive Asset</label>
-              <div className="asset-grid">
-                {ASSETS.map(a => (
-                  <div key={a.key} className={`asset-option ${assetKey === a.key ? 'selected' : ''}`} onClick={() => setAssetKey(a.key)}>
-                    <div className="asset-icon">{a.icon}</div>
-                    <div className="asset-name">{a.label}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Amount to Exit (PUT)</label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  type="number"
-                  className="form-input"
-                  placeholder="0.00"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  max={putBalance}
-                />
-                <button
-                  style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '0.85rem' }}
-                  onClick={() => setAmount(putBalance.toFixed(6))}
-                >MAX</button>
-              </div>
-            </div>
-
-            {error && <div className="tx-status error">❌ {error}</div>}
-
-            {!showConfirm ? (
-              <button
-                className="btn btn-primary btn-full"
-                style={{ background: 'var(--danger, #dc2626)' }}
-                onClick={() => setShowConfirm(true)}
-                disabled={!amount || parseFloat(amount) <= 0 || parseFloat(amount) > putBalance}
+        {/* Asset selector */}
+        <div className="form-group">
+          <label className="form-label">Receive Asset</label>
+          <div className="asset-grid">
+            {ASSETS.map(a => (
+              <div
+                key={a.key}
+                className={`asset-option ${assetKey === a.key ? 'selected' : ''}`}
+                onClick={() => setAssetKey(a.key)}
               >
-                Exit Position
-              </button>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <div className="info-box danger">
-                  <div className="info-box-title">Exit {amount} PUT for {asset.label}?</div>
-                </div>
-                <button className="btn btn-primary btn-full" style={{ background: 'var(--danger, #dc2626)' }} onClick={handleExit} disabled={loading}>
-                  {loading ? <><span className="loading" /> Exiting...</> : 'Confirm Exit'}
-                </button>
-                <button className="btn btn-secondary btn-full" onClick={() => setShowConfirm(false)} disabled={loading}>Cancel</button>
+                <div className="asset-icon">{a.icon}</div>
+                <div className="asset-name">{a.label}</div>
               </div>
-            )}
+            ))}
+          </div>
+        </div>
 
-            {txSig && (
-              <div className="tx-status success">
-                ✅ Exit successful!{' '}
-                <a href={`${EXPLORER}/tx/${txSig}`} target="_blank" rel="noopener" style={{ color: 'var(--primary)' }}>
-                  View Tx ↗
-                </a>
-              </div>
-            )}
-          </>
+        {/* Amount */}
+        <div className="form-group">
+          <label className="form-label">Amount ({asset.label})</label>
+          <div style={{ position: 'relative' }}>
+            <input
+              type="number"
+              className="form-input"
+              placeholder="0.00"
+              value={amount}
+              onChange={e => setAmount(e.target.value)}
+            />
+            <button
+              style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 700 }}
+              onClick={() => setAmount((position?.amount || 0).toFixed(6))}
+            >MAX</button>
+          </div>
+        </div>
+
+        {error && <div className="tx-status error">❌ {error}</div>}
+
+        {!showConfirm ? (
+          <button
+            className="btn btn-primary btn-full"
+            style={{ background: 'var(--danger, #dc2626)' }}
+            onClick={() => setShowConfirm(true)}
+            disabled={!amount || parseFloat(amount) <= 0 || !position}
+          >
+            🚪 Exit Position
+          </button>
         ) : (
-          <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
-            <p>Connect wallet to exit</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div className="info-box danger">
+              <div className="info-box-title">
+                Withdraw {amount} {asset.label} and reduce position?
+              </div>
+            </div>
+            <button
+              className="btn btn-primary btn-full"
+              style={{ background: '#dc2626' }}
+              onClick={handleExit}
+              disabled={loading}
+            >
+              {loading ? <><span className="loading" /> Exiting...</> : 'Confirm Exit'}
+            </button>
+            <button className="btn btn-secondary btn-full" onClick={() => setShowConfirm(false)} disabled={loading}>
+              Cancel
+            </button>
           </div>
         )}
 
-        <div style={{ marginTop: '16px', fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+        {txSig && (
+          <div className="tx-status success">
+            ✅ Exit successful!{' '}
+            <a href={`${EXPLORER}/tx/${txSig}`} target="_blank" rel="noopener" style={{ color: 'var(--primary)' }}>
+              View Tx ↗
+            </a>
+          </div>
+        )}
+
+        <div style={{ marginTop: 16, fontSize: '0.78rem', color: 'var(--text-muted)', textAlign: 'center' }}>
           {IS_TESTNET ? '🔧 Testnet' : '🌐 Mainnet'}
         </div>
       </div>
