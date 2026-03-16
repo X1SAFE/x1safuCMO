@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from 'react'
 import { useWallet }                        from '@solana/wallet-adapter-react'
 import { WalletReadyState }                 from '@solana/wallet-adapter-base'
 
-const SITE_URL = 'https://x1safe-ui.vercel.app'
+const SITE_URL = 'https://x1safu-cmo.vercel.app'
 
 // Wallet definitions with deeplinks for mobile
 const WALLET_DEFS = [
