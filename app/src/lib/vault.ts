@@ -15,7 +15,12 @@ export const EXPLORER   = IS_TESTNET
   ? 'https://explorer.testnet.x1.xyz'
   : 'https://explorer.mainnet.x1.xyz'
 
+// ── X1SAFE Token Rate ─────────────────────────────────────────────────────────
+// 1 USD = 100 X1SAFE  →  1 X1SAFE = $0.01
+export const X1SAFE_PER_USD = 100
+
 // ── Supported Assets ─────────────────────────────────────────────────────────
+// NOTE: Mints below are testnet mints; prices fetched from X1 Mainnet pool data
 export const MINTS = {
   USDCX: new PublicKey('3VAPVRUV25jVm2EzuQpQpJWugLH4AzBPWJK5sQyZJuct'),
   XNT:   new PublicKey('AuK65QqWmPTsvfKS4FAdJ6idWiw8zvzM68tXnEYGRMTC'),
@@ -38,8 +43,6 @@ export const getUserPositionPDA = (user: PublicKey) =>
     PROGRAM_ID
   )[0]
 
-// Vault token account — PDA that holds each asset type
-// seeds = ["vault_token", asset_mint]
 export const getVaultTokenAccountPDA = (mint: PublicKey) =>
   PublicKey.findProgramAddressSync(
     [Buffer.from('vault_token'), mint.toBuffer()],
@@ -110,10 +113,10 @@ export const IDL: any = {
     },
   ],
   errors: [
-    { code: 6000, name: 'InvalidAmount',      msg: 'Invalid amount' },
-    { code: 6001, name: 'MathOverflow',       msg: 'Math overflow' },
-    { code: 6002, name: 'InsufficientFunds',  msg: 'Insufficient funds in position' },
-    { code: 6003, name: 'Unauthorized',       msg: 'Unauthorized' },
+    { code: 6000, name: 'InvalidAmount',     msg: 'Invalid amount' },
+    { code: 6001, name: 'MathOverflow',      msg: 'Math overflow' },
+    { code: 6002, name: 'InsufficientFunds', msg: 'Insufficient funds in position' },
+    { code: 6003, name: 'Unauthorized',      msg: 'Unauthorized' },
   ],
 }
 
@@ -128,8 +131,8 @@ export async function fetchVaultState(connection: Connection) {
     const vault = getVaultPDA()
     const info  = await connection.getAccountInfo(vault)
     if (!info) return null
-    const data = info.data
-    let offset = 8 // skip discriminator
+    const data   = info.data
+    let offset   = 8
     const authority = new PublicKey(data.slice(offset, offset + 32)); offset += 32
     const totalTvl  = Number(data.readBigUInt64LE(offset));           offset += 8
     const bump      = data[offset]
@@ -164,18 +167,64 @@ export async function getTokenBalance(
   } catch { return 0 }
 }
 
-// ── Fetch XNT/XEN price from xDEX ─────────────────────────────────────────────
+// ── Oracle: xDEX pool list → real-time prices ─────────────────────────────────
+// Strategy: fetch X1 Mainnet pool list, find highest-TVL pool for each token,
+// extract token1_price / token2_price (already in USD)
 export async function fetchAssetPrices(): Promise<Record<string, number>> {
+  const fallback = { USDCX: 1.0, XNT: 0.35, XEN: 0.00000000005 }
   try {
-    const res = await fetch('https://api.xdex.xyz/v1/prices?tokens=XNT,XEN')
-    if (!res.ok) return {}
-    const data = await res.json()
-    return {
-      XNT: data?.XNT?.usd ?? 0,
-      XEN: data?.XEN?.usd ?? 0,
-      USDCX: 1.0,
+    const res = await fetch(
+      'https://api.xdex.xyz/api/xendex/pool/list?network=X1%20Mainnet',
+      { signal: AbortSignal.timeout(6000) }
+    )
+    if (!res.ok) return fallback
+    const data  = await res.json()
+    const pools: any[] = data?.data ?? data ?? []
+
+    let xntPrice = 0
+    let xntTvl   = 0
+    let xenPrice = 0
+    let xenTvl   = 0
+
+    for (const p of pools) {
+      const t1   = p.token1_symbol ?? ''
+      const t2   = p.token2_symbol ?? ''
+      const tvl  = p.tvl ?? 0
+
+      // XNT / WXNT price
+      if (t1 === 'WXNT' && tvl > xntTvl && p.token1_price > 0) {
+        xntPrice = p.token1_price
+        xntTvl   = tvl
+      } else if (t2 === 'WXNT' && tvl > xntTvl && p.token2_price > 0) {
+        xntPrice = p.token2_price
+        xntTvl   = tvl
+      }
+
+      // XEN price (very small number)
+      if (t2 === 'XEN' && tvl > xenTvl && p.token2_price > 0) {
+        xenPrice = p.token2_price
+        xenTvl   = tvl
+      } else if (t1 === 'XEN' && tvl > xenTvl && p.token1_price > 0) {
+        xenPrice = p.token1_price
+        xenTvl   = tvl
+      }
     }
-  } catch { return { USDCX: 1.0 } }
+
+    return {
+      USDCX: 1.0,
+      XNT:   xntPrice > 0 ? xntPrice : fallback.XNT,
+      XEN:   xenPrice > 0 ? xenPrice : fallback.XEN,
+    }
+  } catch {
+    return fallback
+  }
+}
+
+// ── X1SAFE amount calculation ─────────────────────────────────────────────────
+// assetAmount (human units) × assetPriceUSD × X1SAFE_PER_USD = X1SAFE received
+// e.g. 1 XNT × $0.3534 × 100 = 35.34 X1SAFE
+export function calcX1SAFE(assetAmount: number, priceUsd: number): number {
+  return assetAmount * priceUsd * X1SAFE_PER_USD
 }
 
 export function toBaseUnits(amount: number, decimals: number): BN {
