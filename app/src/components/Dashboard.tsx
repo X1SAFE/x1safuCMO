@@ -9,12 +9,12 @@ export function Dashboard() {
   const { connection } = useConnection()
   const wallet         = useWallet()
 
-  const [vaultState, setVaultState] = useState<any>(null)
-  const [position, setPosition]     = useState<any>(null)
-  const [balances, setBalances]     = useState<Record<string, number>>({})
-  const [prices, setPrices]         = useState<Record<string, number>>({ USDCX: 1.0 })
-  const [loading, setLoading]       = useState(true)
-  const [lastUpdated, setLastUpdated] = useState('')
+  const [vaultState,   setVaultState]   = useState<any>(null)
+  const [position,     setPosition]     = useState<any>(null)
+  const [balances,     setBalances]     = useState<Record<string, number>>({})
+  const [prices,       setPrices]       = useState<Record<string, number>>({ USDCX: 1.0 })
+  const [loading,      setLoading]      = useState(true)
+  const [lastUpdated,  setLastUpdated]  = useState('')
 
   useEffect(() => {
     const load = async () => {
@@ -41,157 +41,152 @@ export function Dashboard() {
     return () => clearInterval(t)
   }, [wallet.publicKey, connection])
 
-  const tvlUsd = vaultState ? vaultState.totalTvl / 1e6 : 0
-  // position amount is stored in base units (lamports of deposited asset)
-  const posUsd = position ? position.amount / 1e6 : 0
+  const tvlUsd   = vaultState ? vaultState.totalTvl / 1e6 : 0
+  const posUsd   = position   ? position.amount / 1e6      : 0
   const posX1SAFE = posUsd * X1SAFE_PER_USD
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '60px 0', color: 'var(--text-2)', gap: 10, fontSize: '0.85rem' }}>
+        <span className="loading" style={{ color: 'var(--text-2)' }} />
+        Loading vault data…
+      </div>
+    )
+  }
 
   return (
     <div className="dashboard">
-      <div className="card">
-        <div className="card-header">
-          <div>
-            <div className="card-title">📊 X1SAFE Dashboard</div>
-            <div className="card-subtitle">
-              {IS_TESTNET ? '🔧 Testnet' : '🌐 Mainnet'} · Auto-refresh 15s
-              {lastUpdated && ` · ${lastUpdated}`}
-            </div>
+      {/* ── Status bar ── */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>Overview</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span className={`badge ${vaultState ? 'badge-green' : 'badge-gray'}`}>
+            {vaultState ? '● Active' : '○ Uninitialized'}
+          </span>
+          <span className="badge badge-blue">{IS_TESTNET ? 'Testnet' : 'Mainnet'}</span>
+        </div>
+      </div>
+
+      {/* ── Stats ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+        <div className="stat-card">
+          <div className="stat-label">Total TVL</div>
+          <div className="stat-value">${tvlUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">X1SAFE rate</div>
+          <div style={{ fontSize: '1.1rem', fontWeight: 700, marginTop: 2 }}>
+            $1 = {X1SAFE_PER_USD} <span style={{ color: 'var(--text-2)', fontSize: '0.78rem', fontWeight: 400 }}>token</span>
           </div>
         </div>
+      </div>
 
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-            <span className="loading" /> Loading vault state...
+      {/* ── Live Prices ── */}
+      <div className="card">
+        <div className="card-header" style={{ marginBottom: 14 }}>
+          <div>
+            <div className="card-title" style={{ fontSize: '0.875rem' }}>Oracle Prices</div>
+            <div className="card-subtitle">via xDEX Mainnet{lastUpdated && ` · ${lastUpdated}`}</div>
           </div>
-        ) : (
-          <>
-            {/* Protocol stats */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 24 }}>
-              <div className="position-card">
-                <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginBottom: 4 }}>TVL (USD)</div>
-                <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--primary)' }}>
-                  ${tvlUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+        </div>
+        <div className="row-list">
+          {ASSETS.map(a => {
+            const price = prices[a.key] || 0
+            const x1safePerUnit = price * X1SAFE_PER_USD
+            return (
+              <div key={a.key} className="row-item">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: '1.2rem' }}>{a.icon}</span>
+                  <span style={{ fontWeight: 500, fontSize: '0.875rem' }}>{a.label}</span>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.875rem', color: 'var(--success)' }}>
+                    ${price < 0.001 ? price.toExponential(2) : price.toFixed(4)}
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-2)' }}>
+                    = {x1safePerUnit.toFixed(2)} X1SAFE
+                  </div>
                 </div>
               </div>
-              <div className="position-card">
-                <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginBottom: 4 }}>X1SAFE Rate</div>
-                <div style={{ fontSize: '0.95rem', fontWeight: 800 }}>
-                  <span style={{ color: '#22c55e' }}>${1/X1SAFE_PER_USD}</span>
-                  <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}> /token</span>
-                </div>
-                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>1 USD = {X1SAFE_PER_USD} X1SAFE</div>
-              </div>
-              <div className="position-card">
-                <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginBottom: 4 }}>Status</div>
-                <div style={{ fontSize: '1.1rem', fontWeight: 700, color: vaultState ? '#22c55e' : '#ef4444' }}>
-                  {vaultState ? '✅ Active' : '❌ Not init'}
-                </div>
-              </div>
-            </div>
+            )
+          })}
+        </div>
+      </div>
 
-            {/* Live oracle prices */}
-            <div style={{ fontWeight: 700, marginBottom: 10, fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
-              📡 Live Oracle Prices
-              <span style={{ fontSize: '0.72rem', fontWeight: 400, color: 'var(--text-muted)', marginLeft: 8 }}>
-                via xDEX Mainnet pools
-              </span>
+      {/* ── User position ── */}
+      {wallet.connected ? (
+        <div className="card">
+          <div className="card-header" style={{ marginBottom: 14 }}>
+            <div className="card-title" style={{ fontSize: '0.875rem' }}>Your Position</div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+            <div className="position-card">
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-2)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Deposited (USD)</div>
+              <div style={{ fontWeight: 700, fontSize: '1.3rem', letterSpacing: '-0.02em' }}>${posUsd.toFixed(2)}</div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 22 }}>
-              {ASSETS.map(a => {
-                const price = prices[a.key] || 0
-                // X1SAFE you get per 1 unit of this asset
-                const x1safePerUnit = price * X1SAFE_PER_USD
-                return (
-                  <div key={a.key} className="position-card" style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '1.4rem' }}>{a.icon}</div>
-                    <div style={{ fontWeight: 700, fontSize: '0.88rem' }}>{a.label}</div>
-                    <div style={{ color: '#22c55e', fontWeight: 800, fontSize: '0.92rem' }}>
-                      ${price < 0.001 ? price.toExponential(2) : price.toFixed(4)}
-                    </div>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 2 }}>
-                      1 {a.label} = {x1safePerUnit.toFixed(2)} X1SAFE
+            <div className="position-card">
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-2)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>X1SAFE Issued</div>
+              <div style={{ fontWeight: 700, fontSize: '1.3rem', letterSpacing: '-0.02em', color: 'var(--success)' }}>{posX1SAFE.toFixed(2)}</div>
+            </div>
+          </div>
+
+          {/* Wallet Balances */}
+          <div style={{ fontWeight: 600, fontSize: '0.78rem', color: 'var(--text-2)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Wallet balances</div>
+          <div className="row-list">
+            {ASSETS.map(a => {
+              const bal = balances[a.key] || 0
+              const usd = bal * (prices[a.key] || 0)
+              return (
+                <div key={a.key} className="row-item">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: '1.1rem' }}>{a.icon}</span>
+                    <span style={{ fontWeight: 500, fontSize: '0.85rem' }}>{a.label}</span>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{bal.toFixed(4)}</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-2)' }}>
+                      ≈ ${usd < 0.0001 ? usd.toExponential(2) : usd.toFixed(4)}
                     </div>
                   </div>
-                )
-              })}
-            </div>
-
-            {/* User position */}
-            {wallet.connected ? (
-              <>
-                <div style={{ fontWeight: 700, marginBottom: 10, fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
-                  💼 Your Position
                 </div>
-                <div style={{ background: 'rgba(37,99,235,0.08)', border: '1px solid rgba(37,99,235,0.25)', borderRadius: 12, padding: '14px 16px', marginBottom: 16 }}>
-                  {position ? (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                      <div>
-                        <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginBottom: 2 }}>Deposited (USD)</div>
-                        <div style={{ fontWeight: 800, fontSize: '1.3rem', color: 'var(--primary)' }}>${posUsd.toFixed(2)}</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginBottom: 2 }}>X1SAFE Issued</div>
-                        <div style={{ fontWeight: 800, fontSize: '1.3rem', color: '#22c55e' }}>{posX1SAFE.toFixed(2)}</div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.88rem', padding: '8px 0' }}>
-                      No active position · Deposit to get started
-                    </div>
-                  )}
-                </div>
+              )
+            })}
+          </div>
 
-                <div style={{ fontWeight: 700, marginBottom: 10, fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
-                  👛 Wallet Balances
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {ASSETS.map(a => {
-                    const bal   = balances[a.key] || 0
-                    const price = prices[a.key] || 0
-                    const usd   = bal * price
-                    return (
-                      <div key={a.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--bg-secondary)', borderRadius: 10 }}>
-                        <span style={{ fontWeight: 600 }}>{a.icon} {a.label}</span>
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontWeight: 700 }}>{bal.toFixed(4)}</div>
-                          <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                            ≈ ${usd < 0.0001 ? usd.toExponential(2) : usd.toFixed(4)}
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-
-                {/* X1SAFE conversion preview */}
-                {Object.values(balances).some(v => v > 0) && (
-                  <div style={{ marginTop: 14, padding: '12px 14px', background: 'rgba(34,197,94,0.07)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 10 }}>
-                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: 6 }}>If you deposit all balances</div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ fontWeight: 600, fontSize: '0.88rem' }}>Total X1SAFE you'd receive</span>
-                      <span style={{ fontWeight: 800, color: '#22c55e' }}>
-                        {ASSETS.reduce((sum, a) => sum + calcX1SAFE(balances[a.key] || 0, prices[a.key] || 0), 0).toFixed(2)} X1SAFE
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
-                Connect wallet to see your position
-              </div>
-            )}
-
-            {/* Program info */}
-            <div style={{ marginTop: 20, padding: '10px 14px', background: 'var(--bg-secondary)', borderRadius: 8, fontSize: '0.76rem', color: 'var(--text-muted)' }}>
-              <div><strong>Program:</strong>{' '}
-                <a href={`${EXPLORER}/address/${PROGRAM_ID.toBase58()}`} target="_blank" rel="noopener" style={{ color: 'var(--primary)', fontFamily: 'monospace' }}>
-                  {PROGRAM_ID.toBase58().slice(0, 20)}...
-                </a>
+          {/* If-deposited preview */}
+          {Object.values(balances).some(v => v > 0) && (
+            <div className="preview-box" style={{ marginTop: 14, background: 'var(--success-dim)', border: '1px solid rgba(34,197,94,0.15)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-2)' }}>If you deposit all balances</span>
+                <span style={{ fontWeight: 700, color: 'var(--success)', fontSize: '0.9rem' }}>
+                  {ASSETS.reduce((s, a) => s + calcX1SAFE(balances[a.key] || 0, prices[a.key] || 0), 0).toFixed(2)} X1SAFE
+                </span>
               </div>
             </div>
-          </>
-        )}
+          )}
+        </div>
+      ) : (
+        <div className="card" style={{ textAlign: 'center', padding: '32px 20px' }}>
+          <div style={{ color: 'var(--text-2)', fontSize: '0.85rem', marginBottom: 4 }}>Connect your wallet</div>
+          <div style={{ color: 'var(--text-3)', fontSize: '0.78rem' }}>to see your position and balances</div>
+        </div>
+      )}
+
+      {/* ── Program info ── */}
+      <div style={{ marginTop: 4, padding: '10px 14px', background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: '0.72rem', color: 'var(--text-3)' }}>
+        Program:{' '}
+        <a
+          href={`${EXPLORER}/address/${PROGRAM_ID.toBase58()}`}
+          target="_blank"
+          rel="noopener"
+          className="mono"
+          style={{ color: 'var(--text-2)', textDecoration: 'none' }}
+          onMouseEnter={e => (e.currentTarget.style.color = 'var(--text)')}
+          onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-2)')}
+        >
+          {PROGRAM_ID.toBase58().slice(0, 16)}…
+        </a>
       </div>
     </div>
   )

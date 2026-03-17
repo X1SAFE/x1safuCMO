@@ -14,15 +14,15 @@ export function Deposit() {
   const wallet          = useWallet()
   const anchorWallet    = useAnchorWallet()
 
-  const [amount, setAmount]     = useState('')
-  const [assetKey, setAssetKey] = useState('USDCX')
-  const [loading, setLoading]   = useState(false)
-  const [txSig, setTxSig]       = useState('')
-  const [error, setError]       = useState('')
-  const [balances, setBalances] = useState<Record<string, number>>({})
-  const [prices, setPrices]     = useState<Record<string, number>>({ USDCX: 1.0 })
+  const [amount,       setAmount]       = useState('')
+  const [assetKey,     setAssetKey]     = useState('USDCX')
+  const [loading,      setLoading]      = useState(false)
+  const [txSig,        setTxSig]        = useState('')
+  const [error,        setError]        = useState('')
+  const [balances,     setBalances]     = useState<Record<string, number>>({})
+  const [prices,       setPrices]       = useState<Record<string, number>>({ USDCX: 1.0 })
   const [priceLoading, setPriceLoading] = useState(true)
-  const [lastUpdated, setLastUpdated]   = useState('')
+  const [lastUpdated,  setLastUpdated]  = useState('')
 
   const asset = ASSETS.find(a => a.key === assetKey)!
 
@@ -38,9 +38,7 @@ export function Deposit() {
     if (!wallet.publicKey) return
     const load = async () => {
       const result: Record<string, number> = {}
-      for (const a of ASSETS) {
-        result[a.key] = await getTokenBalance(connection, wallet.publicKey!, a.mint)
-      }
+      for (const a of ASSETS) result[a.key] = await getTokenBalance(connection, wallet.publicKey!, a.mint)
       setBalances(result)
     }
     load()
@@ -48,7 +46,7 @@ export function Deposit() {
 
   useEffect(() => {
     loadPrices()
-    const t = setInterval(loadPrices, 30000) // refresh every 30s
+    const t = setInterval(loadPrices, 30000)
     return () => clearInterval(t)
   }, [])
 
@@ -61,22 +59,17 @@ export function Deposit() {
     setLoading(true)
     setError('')
     setTxSig('')
-
     try {
       const provider = new AnchorProvider(connection, anchorWallet, { commitment: 'confirmed' })
       const program  = getProgram(provider)
-
       const vault             = getVaultPDA()
       const userPosition      = getUserPositionPDA(wallet.publicKey)
       const userTokenAccount  = await getAssociatedTokenAddress(asset.mint, wallet.publicKey)
       const vaultTokenAccount = getVaultTokenAccountPDA(asset.mint)
 
-      // Pre-create vault token ATA (authority = vault PDA) if needed
       const preTx = new Transaction()
       let needsPre = false
-      try {
-        await getAccount(connection, vaultTokenAccount)
-      } catch {
+      try { await getAccount(connection, vaultTokenAccount) } catch {
         preTx.add(createAssociatedTokenAccountInstruction(wallet.publicKey, vaultTokenAccount, vault, asset.mint))
         needsPre = true
       }
@@ -105,66 +98,42 @@ export function Deposit() {
 
   if (!wallet.connected) {
     return (
-      <div className="card" style={{ maxWidth: 480, margin: '40px auto', textAlign: 'center', padding: '40px' }}>
-        <div style={{ fontSize: '2rem', marginBottom: 12 }}>🔐</div>
-        <div style={{ color: 'var(--text-secondary)' }}>Connect wallet to deposit</div>
+      <div style={{ maxWidth: 440, margin: '32px auto', textAlign: 'center' }}>
+        <div className="card" style={{ padding: '36px 20px' }}>
+          <div style={{ fontSize: '0.85rem', color: 'var(--text-2)', marginBottom: 4 }}>Wallet not connected</div>
+          <div style={{ fontSize: '0.78rem', color: 'var(--text-3)' }}>Go to Connect tab to get started</div>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="deposit">
-      <div className="card">
-        <div className="card-header">
-          <div>
-            <div className="card-title">⬇️ Deposit Assets</div>
-            <div className="card-subtitle">Lock assets → receive X1SAFE tokens</div>
-          </div>
-        </div>
+    <div style={{ maxWidth: 440, margin: '0 auto' }}>
+      <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: 14 }}>Deposit</div>
 
-        {/* Rate info box */}
-        <div className="info-box" style={{ borderColor: '#2563eb', background: 'rgba(37,99,235,0.08)' }}>
-          <div className="info-box-title" style={{ color: '#60a5fa' }}>💡 X1SAFE Rate</div>
-          <div className="info-box-text">
-            <strong style={{ color: '#f1f5f9' }}>$1 USD = {X1SAFE_PER_USD} X1SAFE</strong>
-            <span style={{ color: 'var(--text-muted)' }}> · 1 X1SAFE = $0.01</span>
-            <br />
-            <span style={{ fontSize: '0.8em', color: 'var(--text-muted)' }}>
-              Oracle: xDEX Mainnet pool prices
-              {lastUpdated && ` · Updated ${lastUpdated}`}
+      {/* ── Asset selector ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 18 }}>
+        {ASSETS.map(a => (
+          <button
+            key={a.key}
+            className={`asset-chip${assetKey === a.key ? ' selected' : ''}`}
+            onClick={() => setAssetKey(a.key)}
+          >
+            <span style={{ fontSize: '1.2rem' }}>{a.icon}</span>
+            <span style={{ fontWeight: 600, fontSize: '0.82rem' }}>{a.label}</span>
+            <span style={{ fontSize: '0.7rem', color: priceLoading ? 'var(--text-3)' : 'var(--success)', fontWeight: 600 }}>
+              {priceLoading ? '…' : `$${(prices[a.key] || 0).toPrecision(3)}`}
             </span>
-          </div>
-        </div>
+            <span style={{ fontSize: '0.68rem', color: 'var(--text-3)' }}>
+              {balances[a.key] !== undefined ? `${balances[a.key].toFixed(2)} bal` : '—'}
+            </span>
+          </button>
+        ))}
+      </div>
 
-        {/* Live price ticker */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 20 }}>
-          {ASSETS.map(a => (
-            <div key={a.key}
-              onClick={() => setAssetKey(a.key)}
-              style={{
-                padding: '10px 8px',
-                borderRadius: 10,
-                background: assetKey === a.key ? 'rgba(37,99,235,0.15)' : 'var(--bg-secondary)',
-                border: assetKey === a.key ? '1.5px solid #2563eb' : '1.5px solid transparent',
-                cursor: 'pointer',
-                textAlign: 'center',
-                transition: 'all 0.15s',
-              }}
-            >
-              <div style={{ fontSize: '1.3rem' }}>{a.icon}</div>
-              <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>{a.label}</div>
-              <div style={{ fontSize: '0.78rem', color: priceLoading ? 'var(--text-muted)' : '#22c55e', fontWeight: 600 }}>
-                {priceLoading ? '...' : `$${(prices[a.key] || 0).toPrecision(4)}`}
-              </div>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 2 }}>
-                {balances[a.key] !== undefined ? balances[a.key].toFixed(3) : '—'} bal
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Amount input */}
-        <div className="form-group">
+      {/* ── Amount ── */}
+      <div className="card">
+        <div className="form-group" style={{ marginBottom: 0 }}>
           <label className="form-label">Amount ({asset.label})</label>
           <div style={{ position: 'relative' }}>
             <input
@@ -174,60 +143,69 @@ export function Deposit() {
               value={amount}
               min="0"
               onChange={e => setAmount(e.target.value)}
+              style={{ paddingRight: 52 }}
             />
             <button
-              style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 700 }}
               onClick={() => setAmount((balances[assetKey] || 0).toFixed(6))}
-            >MAX</button>
+              style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-2)', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700, fontFamily: 'inherit', padding: '2px 4px' }}
+            >
+              MAX
+            </button>
           </div>
         </div>
 
-        {/* Conversion preview */}
+        {/* ── Preview ── */}
         {amount && parseFloat(amount) > 0 && (
-          <div style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.25)', borderRadius: 10, padding: '14px 16px', marginBottom: 16 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-              <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>USD Value</span>
-              <span style={{ fontWeight: 700 }}>${usdValue.toFixed(4)}</span>
+          <div className="preview-box" style={{ marginTop: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: '0.8rem' }}>
+              <span style={{ color: 'var(--text-2)' }}>USD value</span>
+              <span style={{ fontWeight: 600 }}>${usdValue.toFixed(4)}</span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-              <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Rate</span>
-              <span style={{ fontSize: '0.85rem' }}>1 {asset.label} = ${assetPrice.toPrecision(4)}</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: '0.8rem' }}>
+              <span style={{ color: 'var(--text-2)' }}>Rate</span>
+              <span>1 {asset.label} = ${assetPrice.toPrecision(4)}</span>
             </div>
-            <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 8, display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: '#22c55e', fontWeight: 700 }}>You receive</span>
-              <span style={{ color: '#22c55e', fontWeight: 800, fontSize: '1.1rem' }}>
+            <div style={{ height: 1, background: 'var(--border)', margin: '8px 0' }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
+              <span style={{ fontWeight: 600 }}>You receive</span>
+              <span style={{ fontWeight: 700, color: 'var(--success)' }}>
                 {x1safeAmount.toFixed(2)} X1SAFE
               </span>
             </div>
           </div>
         )}
 
-        {error && <div className="tx-status error">❌ {error}</div>}
+        {/* ── Rate note ── */}
+        <div style={{ fontSize: '0.72rem', color: 'var(--text-3)', marginTop: 10, display: 'flex', justifyContent: 'space-between' }}>
+          <span>$1 USD = {X1SAFE_PER_USD} X1SAFE</span>
+          <button onClick={loadPrices} style={{ background: 'none', border: 'none', color: 'var(--text-2)', cursor: 'pointer', fontSize: '0.72rem', fontFamily: 'inherit', padding: 0 }}>
+            ↻ Refresh{lastUpdated && ` · ${lastUpdated}`}
+          </button>
+        </div>
+      </div>
 
+      {/* ── Action ── */}
+      <div style={{ marginTop: 12 }}>
+        {error && <div className="tx-status error" style={{ marginBottom: 10 }}>{error}</div>}
         <button
           className="btn btn-primary btn-full"
           onClick={handleDeposit}
           disabled={!amount || parseFloat(amount) <= 0 || loading || assetPrice === 0}
         >
-          {loading ? <><span className="loading" /> Processing...</> : '⬇️ Deposit'}
+          {loading ? <><span className="loading" /> Processing…</> : 'Deposit'}
         </button>
-
         {txSig && (
-          <div className="tx-status success">
-            ✅ Deposited!{' '}
-            <a href={`${EXPLORER}/tx/${txSig}`} target="_blank" rel="noopener" style={{ color: 'var(--primary)' }}>
-              View Tx ↗
+          <div className="tx-status success" style={{ marginTop: 10 }}>
+            Deposited!{' '}
+            <a href={`${EXPLORER}/tx/${txSig}`} target="_blank" rel="noopener" style={{ color: 'var(--success)', fontWeight: 700 }}>
+              View tx ↗
             </a>
           </div>
         )}
+      </div>
 
-        <div style={{ marginTop: 12, fontSize: '0.76rem', color: 'var(--text-muted)', textAlign: 'center' }}>
-          {IS_TESTNET ? '🔧 Testnet' : '🌐 Mainnet'} · {PROGRAM_ID.toBase58().slice(0, 8)}...
-          {' · '}
-          <button onClick={loadPrices} style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '0.76rem', padding: 0 }}>
-            🔄 Refresh prices
-          </button>
-        </div>
+      <div style={{ marginTop: 14, fontSize: '0.7rem', color: 'var(--text-3)', textAlign: 'center' }}>
+        {IS_TESTNET ? 'Testnet' : 'Mainnet'} · {PROGRAM_ID.toBase58().slice(0, 8)}…
       </div>
     </div>
   )
