@@ -14,11 +14,12 @@ const LOGOS: Record<string, string | null> = {
   USDCX:  'https://x1logos.s3.us-east-1.amazonaws.com/48-usdcx.png',
   XNT:    'https://app.xdex.xyz/assets/images/tokens/x1.webp',
   XEN:    XEN_LOGO,
+  XNM:    'https://app.xdex.xyz/assets/images/tokens/xnm.webp',
   X1SAFE: null,  // custom SVG below
 }
 
 interface Props {
-  token: 'USDCX' | 'XNT' | 'XEN' | 'X1SAFE'
+  token: 'USDCX' | 'XNT' | 'XEN' | 'XNM' | 'X1SAFE'
   size?: number
   style?: React.CSSProperties
 }
@@ -81,8 +82,8 @@ export function TokenLogo({ token, size = 28, style }: Props) {
 export function AssetLogo({ assetKey, size = 28, style }: {
   assetKey: string; size?: number; style?: React.CSSProperties
 }) {
-  const map: Record<string, 'USDCX' | 'XNT' | 'XEN' | 'X1SAFE'> = {
-    USDCX: 'USDCX', XNT: 'XNT', XEN: 'XEN', X1SAFE: 'X1SAFE',
+  const map: Record<string, 'USDCX' | 'XNT' | 'XEN' | 'XNM' | 'X1SAFE'> = {
+    USDCX: 'USDCX', XNT: 'XNT', XEN: 'XEN', XNM: 'XNM', X1SAFE: 'X1SAFE',
   }
   const token = map[assetKey]
   if (!token) return <span style={{ fontSize: size * 0.6, ...style }}>◈</span>
