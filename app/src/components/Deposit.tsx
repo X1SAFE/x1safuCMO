@@ -6,7 +6,7 @@ import {
 } from '@solana/web3.js'
 import {
   TOKEN_PROGRAM_ID,
-  getAssociatedTokenAddress, getAccount,
+  getAssociatedTokenAddressSync, getAccount,
   createAssociatedTokenAccountInstruction,
 } from '@solana/spl-token'
 import {
@@ -62,21 +62,23 @@ export function Deposit() {
       const reserveAccount = getReserveAccount(asset.mint)
       const putMint        = getPutMintPDA()
       const userPosition   = getUserPositionPDA(wallet.publicKey)
-      const userAssetAta   = await getAssociatedTokenAddress(asset.mint, wallet.publicKey)
-      const userPutAta     = await getAssociatedTokenAddress(putMint, wallet.publicKey)
+      const userAssetAta   = getAssociatedTokenAddressSync(asset.mint, wallet.publicKey, false, TOKEN_PROGRAM_ID)
+      const userPutAta     = getAssociatedTokenAddressSync(putMint, wallet.publicKey, false, TOKEN_PROGRAM_ID)
 
       const tx = new Transaction()
 
       // Create reserve ATA if needed
       try { await getAccount(connection, reserveAccount) } catch {
         tx.add(createAssociatedTokenAccountInstruction(
-          wallet.publicKey, reserveAccount, vault, asset.mint
+          wallet.publicKey, reserveAccount, vault, asset.mint,
+          undefined, TOKEN_PROGRAM_ID
         ))
       }
       // Create user PUT ATA if needed
       try { await getAccount(connection, userPutAta) } catch {
         tx.add(createAssociatedTokenAccountInstruction(
-          wallet.publicKey, userPutAta, wallet.publicKey, putMint
+          wallet.publicKey, userPutAta, wallet.publicKey, putMint,
+          undefined, TOKEN_PROGRAM_ID
         ))
       }
 
