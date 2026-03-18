@@ -3,12 +3,7 @@ import { AnchorProvider, Program, BN } from '@coral-xyz/anchor'
 import { getAssociatedTokenAddressSync } from '@solana/spl-token'
 
 // ── Config ────────────────────────────────────────────────────────────────────
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-const _env = (import.meta as any).env || {}
-export const PROGRAM_ID = new PublicKey(
-  _env.VITE_PROGRAM_ID || '3YqHMLwVVChoSAaN6SjVeKLwKNFN3WQMJ1tFGC2N7Upw'
-)
+export const PROGRAM_ID = new PublicKey('3YqHMLwVVChoSAaN6SjVeKLwKNFN3WQMJ1tFGC2N7Upw')
 
 // ── Verified X1 Testnet Mint Addresses ─────────────────────────────────────
 export const USDC_X_MINT = new PublicKey('6QNPqoF6GGhCFjTTQGxkpJkrH5ueS85b5RpX3GXdUSVw') // USDC.X 6 decimals
@@ -18,8 +13,8 @@ export const SUPPORTED_ASSETS = [
   { label: 'XNT',    mint: XNT_MINT,    decimals: 9, isFixed: false, priceUsd: 0.20 },
 ]
 
-export const RPC_URL    = _env.VITE_RPC_URL  || 'https://rpc.testnet.x1.xyz'
-export const IS_TESTNET = (_env.VITE_NETWORK || 'testnet') === 'testnet'
+export const RPC_URL    = 'https://rpc.testnet.x1.xyz'
+export const IS_TESTNET = true
 export const EXPLORER   = IS_TESTNET
   ? 'https://explorer.testnet.x1.xyz'
   : 'https://explorer.mainnet.x1.xyz'
