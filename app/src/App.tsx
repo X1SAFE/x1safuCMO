@@ -11,6 +11,7 @@ import {
 } from '@solana/wallet-adapter-wallets'
 import { BackpackWalletAdapter } from '@solana/wallet-adapter-backpack'
 import '@solana/wallet-adapter-react-ui/styles.css'
+import './App.css'
 
 import { Dashboard } from './components/Dashboard'
 import { Deposit }   from './components/Deposit'
