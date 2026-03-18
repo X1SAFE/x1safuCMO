@@ -43,9 +43,9 @@ export interface AssetInfo {
 
 export const ASSETS: AssetInfo[] = [
   { key: 'USDCX', label: 'USDC.X', icon: '💵', logoUrl: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png', mint: MINTS.USDCX, decimals: 6, price: 1.0 },
-  { key: 'XNT',   label: 'XNT',    icon: '🪙', logoUrl: 'https://x1.xyz/logo.png', mint: MINTS.XNT,   decimals: 9, price: 0.0 },
-  { key: 'XEN',   label: 'XEN',    icon: '⚡', logoUrl: 'https://xen.network/logo.png', mint: MINTS.XEN,   decimals: 9, price: 0.0 },
-  { key: 'XNM',   label: 'XNM',    icon: '🔷', logoUrl: 'https://x1.xyz/xnm-logo.png', mint: MINTS.XNM,   decimals: 9, price: 0.0 },
+  { key: 'XNT',   label: 'XNT',    icon: '🪙', logoUrl: 'https://app.xdex.xyz/assets/images/tokens/x1.webp', mint: MINTS.XNT,   decimals: 9, price: 0.0 },
+  { key: 'XEN',   label: 'XEN',    icon: '⚡', logoUrl: 'https://app.xdex.xyz/assets/images/tokens/xen.webp', mint: MINTS.XEN,   decimals: 9, price: 0.0 },
+  { key: 'XNM',   label: 'XNM',    icon: '🔷', logoUrl: 'https://app.xdex.xyz/assets/images/tokens/xnm.webp', mint: MINTS.XNM,   decimals: 9, price: 0.0 },
 ]
 
 // ── PDAs ──────────────────────────────────────────────────────────────────────
