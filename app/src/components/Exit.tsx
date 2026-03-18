@@ -5,7 +5,7 @@ import { getAssociatedTokenAddress, createAssociatedTokenAccountInstruction, get
 import { Transaction } from '@solana/web3.js'
 import {
   ASSETS, EXPLORER, IS_TESTNET,
-  getProgram, getVaultPDA, getVaultTokenAccountPDA, getUserPositionPDA,
+  getProgram, getVaultPDA, getVaultTokenAccount, getUserPositionPDA,
   fetchUserPosition, toBaseUnits,
 } from '../lib/vault'
 
@@ -45,7 +45,7 @@ export function Exit() {
       const vault          = getVaultPDA()
       const userPosition   = getUserPositionPDA(wallet.publicKey)
       const userTokenAcct  = await getAssociatedTokenAddress(asset.mint, wallet.publicKey)
-      const vaultTokenAcct = getVaultTokenAccountPDA(asset.mint)
+      const vaultTokenAcct = getVaultTokenAccount(asset.mint)
 
       try { await getAccount(connection, userTokenAcct) } catch {
         const preTx = new Transaction()

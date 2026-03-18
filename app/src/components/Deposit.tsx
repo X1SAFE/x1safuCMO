@@ -5,7 +5,7 @@ import { getAssociatedTokenAddress, createAssociatedTokenAccountInstruction, get
 import { Transaction } from '@solana/web3.js'
 import {
   ASSETS, EXPLORER, IS_TESTNET, PROGRAM_ID, X1SAFE_PER_USD,
-  getProgram, getVaultPDA, getVaultTokenAccountPDA, getUserPositionPDA,
+  getProgram, getVaultPDA, getVaultTokenAccount, getUserPositionPDA,
   getTokenBalance, fetchAssetPrices, calcX1SAFE, toBaseUnits,
 } from '../lib/vault'
 
@@ -70,12 +70,21 @@ export function Deposit() {
       const vault             = getVaultPDA()
       const userPosition      = getUserPositionPDA(wallet.publicKey)
       const userTokenAccount  = await getAssociatedTokenAddress(asset.mint, wallet.publicKey)
-      const vaultTokenAccount = getVaultTokenAccountPDA(asset.mint)
+      const vaultTokenAccount = getVaultTokenAccount(asset.mint)  // ATA(vaultPDA, mint)
 
+      // Create vault ATA if it doesn't exist yet
       const preTx = new Transaction()
       let needsPre = false
-      try { await getAccount(connection, vaultTokenAccount) } catch {
-        preTx.add(createAssociatedTokenAccountInstruction(wallet.publicKey, vaultTokenAccount, vault, asset.mint))
+      try {
+        await getAccount(connection, vaultTokenAccount)
+      } catch {
+        // Vault ATA missing — create it: payer=user, ata=vaultTokenAccount, owner=vault PDA
+        preTx.add(createAssociatedTokenAccountInstruction(
+          wallet.publicKey,   // payer
+          vaultTokenAccount,  // ata address (ATA of vault)
+          vault,              // owner = vault PDA
+          asset.mint          // mint
+        ))
         needsPre = true
       }
       if (needsPre) {
@@ -83,7 +92,7 @@ export function Deposit() {
         preTx.feePayer = wallet.publicKey
         const signed = await wallet.signTransaction!(preTx)
         await connection.sendRawTransaction(signed.serialize())
-        await new Promise(r => setTimeout(r, 2500))
+        await new Promise(r => setTimeout(r, 3000))
       }
 
       const amountBN = toBaseUnits(parseFloat(amount), asset.decimals)

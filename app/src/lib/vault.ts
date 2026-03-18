@@ -1,6 +1,6 @@
 import { Connection, PublicKey } from '@solana/web3.js'
 import { AnchorProvider, Program, BN } from '@coral-xyz/anchor'
-import { getAssociatedTokenAddress } from '@solana/spl-token'
+import { getAssociatedTokenAddress, getAssociatedTokenAddressSync } from '@solana/spl-token'
 
 // ── Config ────────────────────────────────────────────────────────────────────
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -43,11 +43,16 @@ export const getUserPositionPDA = (user: PublicKey) =>
     PROGRAM_ID
   )[0]
 
-export const getVaultTokenAccountPDA = (mint: PublicKey) =>
-  PublicKey.findProgramAddressSync(
-    [Buffer.from('vault_token'), mint.toBuffer()],
-    PROGRAM_ID
-  )[0]
+// vaultTokenAccount = ATA(vaultPDA, mint)
+// The on-chain program uses AToken CPI — vault token account is a standard ATA
+// owned by the vault PDA (allowOwnerOffCurve=true required for PDA owners)
+export const getVaultTokenAccount = (mint: PublicKey): PublicKey => {
+  const vault = getVaultPDA()
+  return getAssociatedTokenAddressSync(mint, vault, true)
+}
+
+// Alias kept for any existing callers
+export const getVaultTokenAccountPDA = getVaultTokenAccount
 
 // ── IDL — matches lib.rs exactly ─────────────────────────────────────────────
 export const IDL: any = {
