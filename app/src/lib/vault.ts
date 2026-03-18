@@ -7,7 +7,7 @@ import { getAssociatedTokenAddressSync } from '@solana/spl-token'
 // @ts-ignore
 const _env = (import.meta as any).env || {}
 export const PROGRAM_ID = new PublicKey(
-  _env.VITE_PROGRAM_ID || 'F2JnWVnjP1h6WG7KKUHqhp23etEJ4amdJquAcE9ecCoe'
+  _env.VITE_PROGRAM_ID || '3YqHMLwVVChoSAaN6SjVeKLwKNFN3WQMJ1tFGC2N7Upw'
 )
 export const RPC_URL    = _env.VITE_RPC_URL  || 'https://rpc.testnet.x1.xyz'
 export const IS_TESTNET = (_env.VITE_NETWORK || 'testnet') === 'testnet'

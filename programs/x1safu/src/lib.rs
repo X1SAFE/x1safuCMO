@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Burn, Mint, MintTo, Token, TokenAccount, Transfer};
 
-declare_id!("F2JnWVnjP1h6WG7KKUHqhp23etEJ4amdJquAcE9ecCoe");
+declare_id!("3YqHMLwVVChoSAaN6SjVeKLwKNFN3WQMJ1tFGC2N7Upw");
 
 pub const X1SAFE_PER_USD: u64 = 100;      // 1 USD = 100 X1SAFE_PUT
 pub const PRICE_SCALE:    u128 = 1_000_000; // prices stored × 10^6

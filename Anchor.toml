@@ -3,13 +3,7 @@ seeds = true
 skip-lint = false
 
 [programs.testnet]
-x1safu = "5hJZRQKfCDjhvayVbswXBqvh5oThhF1KZvRfA3FCB1EL"
-
-[programs.mainnet]
-x1safu = "5hJZRQKfCDjhvayVbswXBqvh5oThhF1KZvRfA3FCB1EL"
-
-[programs.localnet]
-x1safu = "5hJZRQKfCDjhvayVbswXBqvh5oThhF1KZvRfA3FCB1EL"
+x1safu = "F2JnWVnjP1h6WG7KKUHqhp23etEJ4amdJquAcE9ecCoe"
 
 [provider]
 cluster = "https://rpc.testnet.x1.xyz"
@@ -17,6 +11,3 @@ wallet = "~/.config/solana/id.json"
 
 [scripts]
 test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
-
-[test.validator]
-url = "https://rpc.mainnet.x1.xyz"
