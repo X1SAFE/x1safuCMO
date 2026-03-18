@@ -16,7 +16,7 @@ export const EXPLORER   = IS_TESTNET
   : 'https://explorer.mainnet.x1.xyz'
 
 // ── X1SAFE Token Rate ─────────────────────────────────────────────────────────
-export const X1SAFE_PER_USD = 1
+export const X1SAFE_PER_USD = 100  // 1 USD = 100 X1SAFE (1 X1SAFE = $0.01)
 
 // ── Supported Assets ─────────────────────────────────────────────────────────
 export const MINTS = {

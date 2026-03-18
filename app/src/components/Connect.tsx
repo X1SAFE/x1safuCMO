@@ -64,7 +64,7 @@ const WALLET_DEFS = [
 const INFO_PILLS = [
   { icon: '🔒', label: 'Non-custodial' },
   { icon: '🌐', label: 'X1 Testnet' },
-  { icon: '📈', label: '$1 USD peg' },
+  { icon: '📈', label: '1 X1SAFE = $0.01' },
 ]
 
 export function Connect() {
@@ -456,8 +456,8 @@ export function Connect() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
             {[
               { label: 'Supported Assets', value: 'USDC.X · XNT · XEN · XNM' },
-              { label: 'Token Peg',         value: '1 X1SAFE = $1 USD' },
-              { label: 'Exchange Rate',     value: '1 USD → 1 X1SAFE' },
+              { label: 'Token Peg',         value: '1 X1SAFE = $0.01 USD' },
+              { label: 'Exchange Rate',     value: '1 USD → 100 X1SAFE' },
               { label: 'Network',           value: 'X1 Testnet' },
             ].map(item => (
               <div key={item.label}>
