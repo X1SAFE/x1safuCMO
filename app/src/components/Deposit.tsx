@@ -21,9 +21,10 @@ function disc(name: string): Buffer {
   return Buffer.from(sha256(new TextEncoder().encode('global:' + name))).subarray(0, 8)
 }
 
-const ASSET_CLASSES: Record<string, string> = { USDCX: 'usdcx', XNT: 'xnt', XEN: 'xen' }
-const ASSET_SHORT:   Record<string, string> = { USDCX: '$', XNT: 'X', XEN: 'E' }
-const ASSET_NAMES:   Record<string, string> = { USDCX: 'USD Coin (X1)', XNT: 'XNT Token', XEN: 'XEN Token' }
+const ASSET_ICONS:  Record<string, string> = { USDCX: '💵', XNT: '⚡', XEN: '🔥' }
+const ASSET_NAMES:  Record<string, string> = { USDCX: 'USD Coin (X1)', XNT: 'XNT Token', XEN: 'XEN Token' }
+const ASSET_COLORS: Record<string, string> = { USDCX: 'var(--usdcx-color)', XNT: 'var(--xnt-color)', XEN: 'var(--xen-color)' }
+const ASSET_CLASS:  Record<string, string> = { USDCX: 'usdcx', XNT: 'xnt', XEN: 'xen' }
 
 export function Deposit() {
   const { connection } = useConnection()
@@ -67,14 +68,12 @@ export function Deposit() {
 
       const tx = new Transaction()
 
-      // Create reserve ATA if needed
       try { await getAccount(connection, reserveAccount) } catch {
         tx.add(createAssociatedTokenAccountInstruction(
           wallet.publicKey, reserveAccount, vault, asset.mint,
           undefined, TOKEN_PROGRAM_ID
         ))
       }
-      // Create user PUT ATA if needed
       try { await getAccount(connection, userPutAta) } catch {
         tx.add(createAssociatedTokenAccountInstruction(
           wallet.publicKey, userPutAta, wallet.publicKey, putMint,
@@ -82,7 +81,6 @@ export function Deposit() {
         ))
       }
 
-      // Deposit instruction (raw — bypasses IDL version mismatch)
       const amountBN = toBaseUnits(numAmount, asset.decimals)
       const data = Buffer.alloc(16)
       disc('deposit').copy(data, 0)
@@ -114,6 +112,10 @@ export function Deposit() {
       await connection.confirmTransaction(sig, 'confirmed')
       setTxSig(sig)
       setAmount('')
+      // Refresh balances
+      const updated: Record<string, number> = {}
+      for (const a of ASSETS) updated[a.key] = await getTokenBalance(connection, wallet.publicKey!, a.mint)
+      setBalances(updated)
     } catch (e: any) {
       setError(e?.message || 'Transaction failed')
     } finally { setLoading(false) }
@@ -125,84 +127,179 @@ export function Deposit() {
         <div className="empty-state">
           <div className="empty-state-icon">🔒</div>
           <div className="empty-state-text">Connect Wallet to Deposit</div>
-          <div className="empty-state-sub">Connect your wallet to deposit.</div>
+          <div className="empty-state-sub">Connect your Solana wallet to get started.</div>
         </div>
       </div>
     )
   }
 
+  const balance = balances[assetKey] || 0
+  const halfBal = balance / 2
+  const isInsufficient = numAmount > balance && balance > 0
+  const canDeposit = !loading && numAmount > 0 && !isInsufficient && wallet.signTransaction
+
   return (
     <div className="tab-content">
-      <div className="asset-grid">
+
+      {/* ── Asset selector ── */}
+      <div className="form-label" style={{ marginBottom: 10 }}>Select Asset</div>
+      <div className="asset-grid" style={{ marginBottom: 20 }}>
         {ASSETS.map(a => {
-          const cls = ASSET_CLASSES[a.key] || ''
-          const short = ASSET_SHORT[a.key] || a.label[0]
-          const name = ASSET_NAMES[a.key] || a.label
           const bal = balances[a.key] || 0
+          const selected = assetKey === a.key
           return (
             <button
               key={a.key}
-              onClick={() => setAssetKey(a.key)}
-              className={`asset-card ${cls}${assetKey === a.key ? ' selected' : ''}`}
+              onClick={() => { setAssetKey(a.key); setAmount(''); setError(''); setTxSig('') }}
+              className={`asset-card ${ASSET_CLASS[a.key] || ''}${selected ? ' selected' : ''}`}
+              style={{ cursor: 'pointer' }}
             >
-              <div className="asset-card-icon">{short}</div>
+              <div className="asset-card-icon" style={{ fontSize: '1.1rem' }}>{ASSET_ICONS[a.key] || a.label[0]}</div>
               <div className="asset-card-symbol">{a.label}</div>
-              <div className="asset-card-name">{name}</div>
-              <div className="asset-card-price">
-                ${(prices[a.key] || a.price || 0).toFixed(4)}
+              <div className="asset-card-name">{ASSET_NAMES[a.key] || a.label}</div>
+              <div className="asset-card-price">${(prices[a.key] || a.price || 0).toFixed(4)}</div>
+              <div className="asset-card-balance" style={{ color: bal > 0 ? ASSET_COLORS[a.key] : undefined }}>
+                {bal > 0 ? `${bal.toLocaleString(undefined, { maximumFractionDigits: 2 })} held` : 'No balance'}
               </div>
-              <div className="asset-card-balance">{bal > 0 ? `${bal.toFixed(2)} held` : 'No balance'}</div>
             </button>
           )
         })}
       </div>
 
-      <div className="amount-input-row">
-        <span>Balance: <strong style={{ color: 'var(--text-2)' }}>{(balances[assetKey] || 0).toFixed(4)} {asset.label}</strong></span>
-      </div>
-
-      <div className="amount-input-wrap">
-        <input
-          className="amount-input"
-          type="number"
-          placeholder="0.00"
-          value={amount}
-          onChange={e => setAmount(e.target.value)}
-        />
-        <div className="amount-input-asset">
-          <span style={{ fontSize: '0.78rem' }}>{ASSET_SHORT[assetKey]}</span>
-          {asset.label}
+      {/* ── Amount input block ── */}
+      <div className="amount-input-block" style={{ marginBottom: 14 }}>
+        <div className="amount-input-row">
+          <input
+            className="amount-input-big"
+            type="number"
+            placeholder="0.00"
+            value={amount}
+            min="0"
+            step="any"
+            onChange={e => { setAmount(e.target.value); setError(''); setTxSig('') }}
+          />
+          <div className="amount-input-asset">
+            <span style={{ fontSize: '1rem' }}>{ASSET_ICONS[assetKey]}</span>
+            <span style={{ color: ASSET_COLORS[assetKey] }}>{asset.label}</span>
+          </div>
         </div>
-        <button className="amount-max-btn" onClick={() => setAmount((balances[assetKey] || 0).toFixed(6))}>MAX</button>
+        <div className="amount-input-footer">
+          <span className="amount-usd">
+            {numAmount > 0 ? `≈ $${usdValue.toFixed(4)} USD` : 'Enter amount'}
+          </span>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button
+              className="amount-max-btn"
+              onClick={() => setAmount(halfBal > 0 ? halfBal.toFixed(6) : '')}
+              disabled={balance === 0}
+            >
+              HALF
+            </button>
+            <button
+              className="amount-max-btn"
+              onClick={() => setAmount(balance > 0 ? balance.toFixed(6) : '')}
+              disabled={balance === 0}
+            >
+              MAX
+            </button>
+          </div>
+        </div>
+        <div style={{
+          marginTop: 10,
+          paddingTop: 10,
+          borderTop: '1px solid var(--border-soft)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          fontSize: '0.75rem',
+          color: 'var(--text-3)',
+        }}>
+          <span>Balance</span>
+          <span style={{ color: balance > 0 ? ASSET_COLORS[assetKey] : undefined, fontWeight: 600 }}>
+            {balance.toLocaleString(undefined, { maximumFractionDigits: 6 })} {asset.label}
+          </span>
+        </div>
       </div>
 
+      {/* ── Conversion card ── */}
       {numAmount > 0 && (
-        <div className="deposit-summary">
-          <div className="summary-row"><span className="label">Input</span><span className="value">{numAmount.toFixed(4)} {asset.label}</span></div>
-          <div className="summary-row"><span className="label">Oracle price</span><span className="value">${assetPrice.toPrecision(4)}</span></div>
-          <div className="summary-row"><span className="label">USD value</span><span className="value">${usdValue.toFixed(4)}</span></div>
-          <div className="summary-row highlight"><span className="label">→ You receive</span><span className="value">{x1safeAmount.toFixed(2)} X1SAFE_PUT</span></div>
-          <div style={{ fontSize: '0.72rem', color: 'var(--text-3)', marginTop: 4 }}>
-            $1 USD = 100 X1SAFE_PUT &nbsp;·&nbsp; PUT is locked (non-transferable receipt)
+        <div className="conversion-card" style={{ marginBottom: 14 }}>
+          <div className="conversion-row">
+            <span className="label">You deposit</span>
+            <span className="value">{numAmount.toFixed(4)} {asset.label}</span>
+          </div>
+          <div className="conversion-row">
+            <span className="label">Oracle price</span>
+            <span className="value" style={{ color: ASSET_COLORS[assetKey] }}>${assetPrice.toFixed(4)}</span>
+          </div>
+          <div className="conversion-row">
+            <span className="label">USD value</span>
+            <span className="value">${usdValue.toFixed(4)}</span>
+          </div>
+          <div className="conversion-divider" />
+          <div className="conversion-total">
+            <span className="label">→ You receive</span>
+            <span className="value">{x1safeAmount.toFixed(2)} X1SAFE_PUT</span>
+          </div>
+          <div style={{ marginTop: 10, fontSize: '0.7rem', color: 'var(--text-3)', display: 'flex', gap: 12 }}>
+            <span>$1 USD = 100 X1SAFE_PUT</span>
+            <span>·</span>
+            <span>🔒 Receipt locked to wallet</span>
           </div>
         </div>
       )}
 
-      {error && <div className="error-box">{error}</div>}
-      {txSig && (
-        <div className="success-box">
-          ✅ Deposited!&nbsp;
-          <a href={`${EXPLORER}/tx/${txSig}`} target="_blank" rel="noopener noreferrer">View tx ↗</a>
+      {/* ── Warnings ── */}
+      {isInsufficient && (
+        <div className="info-box warning" style={{ marginBottom: 14 }}>
+          ⚠️ Amount exceeds balance ({balance.toFixed(4)} {asset.label})
         </div>
       )}
 
+      {/* ── Error ── */}
+      {error && (
+        <div className="info-box danger" style={{ marginBottom: 14 }}>
+          ❌ {error}
+        </div>
+      )}
+
+      {/* ── Success ── */}
+      {txSig && (
+        <div className="tx-status success" style={{ marginBottom: 14 }}>
+          <span>✅ Deposit confirmed</span>
+          <a
+            href={`${EXPLORER}/tx/${txSig}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ marginLeft: 'auto', fontSize: '0.78rem', color: 'var(--success)', textDecoration: 'none' }}
+          >
+            View on Explorer ↗
+          </a>
+        </div>
+      )}
+
+      {/* ── Deposit button ── */}
       <button
-        className="btn-primary"
+        className="btn btn-primary btn-full btn-lg"
         onClick={handleDeposit}
-        disabled={loading || !numAmount || numAmount <= 0}
+        disabled={!canDeposit}
+        style={{ fontWeight: 700, letterSpacing: '-0.02em' }}
       >
-        {loading ? 'Processing…' : `Deposit ${numAmount > 0 ? numAmount.toFixed(4) : ''} ${asset.label}`}
+        {loading ? (
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>⟳</span>
+            Processing…
+          </span>
+        ) : numAmount > 0 ? (
+          `Deposit ${numAmount.toFixed(4)} ${asset.label} → ${x1safeAmount.toFixed(2)} X1SAFE_PUT`
+        ) : (
+          `Deposit ${asset.label}`
+        )}
       </button>
+
+      <div style={{ marginTop: 12, textAlign: 'center', fontSize: '0.7rem', color: 'var(--text-3)' }}>
+        Deposits are locked in the vault. Withdraw anytime using your X1SAFE_PUT receipt.
+      </div>
+
     </div>
   )
 }
