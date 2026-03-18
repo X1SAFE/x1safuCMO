@@ -9,6 +9,10 @@ import {
   getTokenBalance, fetchAssetPrices, calcX1SAFE, toBaseUnits,
 } from '../lib/vault'
 
+const ASSET_CLASSES: Record<string, string> = { USDCX: 'usdcx', XNT: 'xnt', XEN: 'xen', XNM: 'xnm' }
+const ASSET_SHORT:   Record<string, string> = { USDCX: '$', XNT: 'X', XEN: 'E', XNM: 'N' }
+const ASSET_NAMES:   Record<string, string> = { USDCX: 'USD Coin (X1)', XNT: 'XNT Token', XEN: 'XEN Token', XNM: 'XNM Token' }
+
 export function Deposit() {
   const { connection }  = useConnection()
   const wallet          = useWallet()
@@ -53,6 +57,7 @@ export function Deposit() {
   const assetPrice   = prices[assetKey] ?? 0
   const usdValue     = amount ? parseFloat(amount) * assetPrice : 0
   const x1safeAmount = amount ? calcX1SAFE(parseFloat(amount), assetPrice) : 0
+  const numAmount    = parseFloat(amount) || 0
 
   const handleDeposit = async () => {
     if (!wallet.publicKey || !anchorWallet || !amount) return
@@ -98,114 +103,165 @@ export function Deposit() {
 
   if (!wallet.connected) {
     return (
-      <div style={{ maxWidth: 440, margin: '32px auto', textAlign: 'center' }}>
-        <div className="card" style={{ padding: '36px 20px' }}>
-          <div style={{ fontSize: '0.85rem', color: 'var(--text-2)', marginBottom: 4 }}>Wallet not connected</div>
-          <div style={{ fontSize: '0.78rem', color: 'var(--text-3)' }}>Go to Connect tab to get started</div>
+      <div style={{ maxWidth: 480, margin: '24px auto' }}>
+        <div className="card">
+          <div className="empty-state">
+            <div className="empty-state-icon">🔐</div>
+            <div className="empty-state-title">Wallet not connected</div>
+            <div className="empty-state-sub">
+              Connect your wallet from the Connect tab to start depositing assets.
+            </div>
+          </div>
         </div>
       </div>
     )
   }
 
   return (
-    <div style={{ maxWidth: 440, margin: '0 auto' }}>
-      <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: 14 }}>Deposit</div>
-
-      {/* ── Asset selector ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 18 }}>
-        {ASSETS.map(a => (
-          <button
-            key={a.key}
-            className={`asset-chip${assetKey === a.key ? ' selected' : ''}`}
-            onClick={() => setAssetKey(a.key)}
-          >
-            <span style={{ fontSize: '1.2rem' }}>{a.icon}</span>
-            <span style={{ fontWeight: 600, fontSize: '0.82rem' }}>{a.label}</span>
-            <span style={{ fontSize: '0.7rem', color: priceLoading ? 'var(--text-3)' : 'var(--success)', fontWeight: 600 }}>
-              {priceLoading ? '…' : `$${(prices[a.key] || 0).toPrecision(3)}`}
-            </span>
-            <span style={{ fontSize: '0.68rem', color: 'var(--text-3)' }}>
-              {balances[a.key] !== undefined ? `${balances[a.key].toFixed(2)} bal` : '—'}
-            </span>
-          </button>
-        ))}
+    <div style={{ maxWidth: 480, margin: '0 auto' }}>
+      {/* ── Page header ── */}
+      <div style={{ marginBottom: 18 }}>
+        <div className="page-title">Deposit</div>
+        <div className="page-subtitle">Select an asset and amount to deposit into the vault</div>
       </div>
 
-      {/* ── Amount ── */}
-      <div className="card">
-        <div className="form-group" style={{ marginBottom: 0 }}>
-          <label className="form-label">Amount ({asset.label})</label>
-          <div style={{ position: 'relative' }}>
-            <input
-              type="number"
-              className="form-input"
-              placeholder="0.00"
-              value={amount}
-              min="0"
-              onChange={e => setAmount(e.target.value)}
-              style={{ paddingRight: 52 }}
-            />
+      {/* ── Asset selector cards ── */}
+      <div className="section-header">
+        <span className="section-title">Select Asset</span>
+        <button
+          onClick={loadPrices}
+          style={{ background: 'none', border: 'none', color: 'var(--text-3)', cursor: 'pointer', fontSize: '0.7rem', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4 }}
+        >
+          {priceLoading ? <span className="loading" style={{ width: 10, height: 10, color: 'var(--text-3)' }} /> : '↻'} {lastUpdated || 'Loading…'}
+        </button>
+      </div>
+
+      <div className="asset-grid">
+        {ASSETS.map(a => {
+          const cls = ASSET_CLASSES[a.key] || 'usdcx'
+          const shortIcon = ASSET_SHORT[a.key] || a.label[0]
+          const name = ASSET_NAMES[a.key] || a.label
+          const price = prices[a.key] || 0
+          const bal = balances[a.key] || 0
+          return (
             <button
-              onClick={() => setAmount((balances[assetKey] || 0).toFixed(6))}
-              style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-2)', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700, fontFamily: 'inherit', padding: '2px 4px' }}
+              key={a.key}
+              className={`asset-card ${cls}${assetKey === a.key ? ' selected' : ''}`}
+              onClick={() => setAssetKey(a.key)}
             >
-              MAX
+              <div className="asset-card-icon">{shortIcon}</div>
+              <div className="asset-card-symbol">{a.label}</div>
+              <div className="asset-card-name">{name}</div>
+              <div className="asset-card-price">
+                {priceLoading ? <span style={{ color: 'var(--text-3)' }}>…</span> : `$${price < 0.0001 ? price.toExponential(2) : price.toFixed(4)}`}
+              </div>
+              <div className="asset-card-balance">
+                {bal > 0 ? `${bal.toFixed(2)} held` : 'No balance'}
+              </div>
             </button>
+          )
+        })}
+      </div>
+
+      {/* ── Amount input ── */}
+      <div className="section-header" style={{ marginTop: 4 }}>
+        <span className="section-title">Amount</span>
+        <span style={{ fontSize: '0.72rem', color: 'var(--text-3)' }}>
+          Balance: <strong style={{ color: 'var(--text-2)' }}>{(balances[assetKey] || 0).toFixed(4)} {asset.label}</strong>
+        </span>
+      </div>
+
+      <div className="amount-input-block">
+        <div className="amount-input-row">
+          <input
+            type="number"
+            className="amount-input-big"
+            placeholder="0.00"
+            value={amount}
+            min="0"
+            onChange={e => setAmount(e.target.value)}
+          />
+          <div className="amount-input-asset">
+            <span style={{ fontSize: '0.78rem' }}>{ASSET_SHORT[assetKey]}</span>
+            {asset.label}
           </div>
         </div>
-
-        {/* ── Preview ── */}
-        {amount && parseFloat(amount) > 0 && (
-          <div className="preview-box" style={{ marginTop: 14 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: '0.8rem' }}>
-              <span style={{ color: 'var(--text-2)' }}>USD value</span>
-              <span style={{ fontWeight: 600 }}>${usdValue.toFixed(4)}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: '0.8rem' }}>
-              <span style={{ color: 'var(--text-2)' }}>Rate</span>
-              <span>1 {asset.label} = ${assetPrice.toPrecision(4)}</span>
-            </div>
-            <div style={{ height: 1, background: 'var(--border)', margin: '8px 0' }} />
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
-              <span style={{ fontWeight: 600 }}>You receive</span>
-              <span style={{ fontWeight: 700, color: 'var(--success)' }}>
-                {x1safeAmount.toFixed(2)} X1SAFE
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* ── Rate note ── */}
-        <div style={{ fontSize: '0.72rem', color: 'var(--text-3)', marginTop: 10, display: 'flex', justifyContent: 'space-between' }}>
-          <span>$1 USD = {X1SAFE_PER_USD} X1SAFE</span>
-          <button onClick={loadPrices} style={{ background: 'none', border: 'none', color: 'var(--text-2)', cursor: 'pointer', fontSize: '0.72rem', fontFamily: 'inherit', padding: 0 }}>
-            ↻ Refresh{lastUpdated && ` · ${lastUpdated}`}
+        <div className="amount-input-footer">
+          <span className="amount-usd">
+            {numAmount > 0 ? `≈ $${usdValue.toFixed(4)} USD` : 'Enter amount'}
+          </span>
+          <button
+            className="amount-max-btn"
+            onClick={() => setAmount((balances[assetKey] || 0).toFixed(6))}
+          >
+            MAX
           </button>
         </div>
+      </div>
+
+      {/* ── Conversion preview ── */}
+      {numAmount > 0 && (
+        <div className="conversion-card">
+          <div className="conversion-row">
+            <span className="label">Input</span>
+            <span className="value">{numAmount.toFixed(4)} {asset.label}</span>
+          </div>
+          <div className="conversion-row">
+            <span className="label">Asset price</span>
+            <span className="value">${assetPrice.toPrecision(4)}</span>
+          </div>
+          <div className="conversion-row">
+            <span className="label">USD value</span>
+            <span className="value">${usdValue.toFixed(4)}</span>
+          </div>
+          <div className="conversion-divider" />
+          <div className="conversion-total">
+            <span className="label">→ You receive</span>
+            <span className="value">{x1safeAmount.toFixed(2)} X1SAFE</span>
+          </div>
+        </div>
+      )}
+
+      {/* ── Rate note ── */}
+      <div style={{ fontSize: '0.72rem', color: 'var(--text-3)', marginBottom: 14, textAlign: 'center' }}>
+        $1 USD = {X1SAFE_PER_USD} X1SAFE token · prices from xDEX oracle
       </div>
 
       {/* ── Action ── */}
-      <div style={{ marginTop: 12 }}>
-        {error && <div className="tx-status error" style={{ marginBottom: 10 }}>{error}</div>}
-        <button
-          className="btn btn-primary btn-full"
-          onClick={handleDeposit}
-          disabled={!amount || parseFloat(amount) <= 0 || loading || assetPrice === 0}
-        >
-          {loading ? <><span className="loading" /> Processing…</> : 'Deposit'}
-        </button>
-        {txSig && (
-          <div className="tx-status success" style={{ marginTop: 10 }}>
-            Deposited!{' '}
+      {error && (
+        <div className="tx-status error" style={{ marginBottom: 12 }}>
+          <span>⚠</span> {error}
+        </div>
+      )}
+
+      <button
+        className="btn btn-primary btn-full btn-lg"
+        onClick={handleDeposit}
+        disabled={!amount || numAmount <= 0 || loading || assetPrice === 0}
+      >
+        {loading
+          ? <><span className="loading" style={{ borderTopColor: '#000' }} /> Processing…</>
+          : `Deposit ${amount ? `${numAmount.toFixed(4)} ` : ''}${asset.label}`
+        }
+      </button>
+
+      {txSig && (
+        <div className="tx-status success" style={{ marginTop: 12 }}>
+          <span>✓</span>
+          <span>
+            Deposited {asset.label} successfully!{' '}
             <a href={`${EXPLORER}/tx/${txSig}`} target="_blank" rel="noopener" style={{ color: 'var(--success)', fontWeight: 700 }}>
               View tx ↗
             </a>
-          </div>
-        )}
-      </div>
+          </span>
+        </div>
+      )}
 
-      <div style={{ marginTop: 14, fontSize: '0.7rem', color: 'var(--text-3)', textAlign: 'center' }}>
-        {IS_TESTNET ? 'Testnet' : 'Mainnet'} · {PROGRAM_ID.toBase58().slice(0, 8)}…
+      <div className="program-footer" style={{ marginTop: 16 }}>
+        <span>{IS_TESTNET ? '🔶 Testnet' : '🟢 Mainnet'}</span>
+        <a href={`${EXPLORER}/address/${PROGRAM_ID.toBase58()}`} target="_blank" rel="noopener" className="mono">
+          {PROGRAM_ID.toBase58().slice(0, 14)}…
+        </a>
       </div>
     </div>
   )

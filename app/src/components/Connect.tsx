@@ -10,7 +10,8 @@ const WALLET_DEFS = [
     adapterName: 'Backpack',
     deeplink:    `https://backpack.app/ul/v1/browse/${encodeURIComponent(SITE_URL)}`,
     install:     'https://backpack.app',
-    desc:        'Best for X1 / Solana',
+    desc:        'Best for X1 · Recommended',
+    emoji:       '🎒',
   },
   {
     name:        'Phantom',
@@ -18,6 +19,7 @@ const WALLET_DEFS = [
     deeplink:    `https://phantom.app/ul/browse/${encodeURIComponent(SITE_URL)}?ref=${encodeURIComponent(SITE_URL)}`,
     install:     'https://phantom.app',
     desc:        'Popular Solana wallet',
+    emoji:       '👻',
   },
   {
     name:        'Solflare',
@@ -25,6 +27,7 @@ const WALLET_DEFS = [
     deeplink:    `https://solflare.com/ul/v1/browse/${encodeURIComponent(SITE_URL)}?ref=${encodeURIComponent(SITE_URL)}`,
     install:     'https://solflare.com',
     desc:        'Desktop & mobile',
+    emoji:       '🌟',
   },
 ]
 
@@ -73,18 +76,43 @@ export function Connect() {
   /* ── Connected ── */
   if (connected && publicKey) {
     return (
-      <div style={{ maxWidth: 400, margin: '32px auto' }}>
-        <div className="card" style={{ textAlign: 'center' }}>
-          <div style={{ width: 48, height: 48, borderRadius: 12, background: 'var(--success-dim)', border: '1px solid rgba(34,197,94,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px', fontSize: '1.4rem' }}>
-            ✅
+      <div className="connect-page">
+        <div className="connected-card">
+          <div className="connected-icon">✓</div>
+          <div style={{ fontWeight: 700, fontSize: '1rem', marginBottom: 6 }}>Wallet connected</div>
+          <div style={{ fontSize: '0.78rem', color: 'var(--text-2)', marginBottom: 16 }}>
+            You can now deposit, withdraw, and manage your position.
           </div>
-          <div style={{ fontWeight: 600, marginBottom: 6 }}>Wallet connected</div>
-          <div className="mono" style={{ color: 'var(--text-2)', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '8px 12px', marginBottom: 16, wordBreak: 'break-all', fontSize: '0.78rem' }}>
+          <div
+            className="mono"
+            style={{
+              color: 'var(--text-2)',
+              background: 'rgba(0,0,0,0.3)',
+              border: '1px solid rgba(34,197,94,0.15)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '8px 12px',
+              marginBottom: 18,
+              wordBreak: 'break-all',
+              fontSize: '0.75rem',
+              lineHeight: 1.6,
+            }}
+          >
             {publicKey.toString()}
           </div>
-          <button className="btn btn-secondary" style={{ width: '100%' }} onClick={handleDisconnect}>
-            Disconnect
+          <button
+            className="btn btn-secondary btn-full"
+            onClick={handleDisconnect}
+          >
+            Disconnect wallet
           </button>
+        </div>
+
+        <div style={{ marginTop: 16, padding: '12px 14px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+          <span style={{ fontSize: '1rem' }}>ℹ️</span>
+          <div style={{ fontSize: '0.78rem', color: 'var(--text-2)', lineHeight: 1.6 }}>
+            Navigate to <strong style={{ color: 'var(--text)' }}>Deposit</strong> to add assets,
+            or <strong style={{ color: 'var(--text)' }}>Overview</strong> to see your position.
+          </div>
         </div>
       </div>
     )
@@ -92,21 +120,22 @@ export function Connect() {
 
   /* ── Picker ── */
   return (
-    <div style={{ maxWidth: 400, margin: '32px auto' }}>
-      <div style={{ textAlign: 'center', marginBottom: 24 }}>
-        <div style={{ width: 52, height: 52, borderRadius: 14, background: 'var(--bg-elevated)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="white" opacity="0.9">
+    <div className="connect-page">
+      <div className="connect-hero">
+        <div className="connect-icon-wrap">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="white" opacity="0.9">
             <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/>
           </svg>
         </div>
-        <div style={{ fontWeight: 700, fontSize: '1.1rem', marginBottom: 4 }}>Connect wallet</div>
-        <div style={{ color: 'var(--text-2)', fontSize: '0.82rem' }}>
-          Choose your wallet to access X1SAFE
+        <div className="connect-title">Connect your wallet</div>
+        <div className="connect-sub">
+          Choose a wallet to access X1SAFE.<br/>
+          Deposit assets, earn yield, exit anytime.
         </div>
       </div>
 
-      <div className="card" style={{ padding: 8 }}>
-        {WALLET_DEFS.map((def, i) => {
+      <div className="wallet-list">
+        {WALLET_DEFS.map((def) => {
           const adapter   = wallets.find(w => w.adapter.name.toLowerCase() === def.adapterName.toLowerCase())
           const isReady   = adapter?.readyState === WalletReadyState.Installed || adapter?.readyState === WalletReadyState.Loadable
           const isLoading = loading === def.name || (connecting && loading === def.name)
@@ -115,59 +144,49 @@ export function Connect() {
           return (
             <button
               key={def.name}
+              className="wallet-btn"
               onClick={() => handleConnect(def)}
               disabled={loading !== null || connecting}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                width: '100%',
-                padding: '12px 14px',
-                background: 'transparent',
-                border: 'none',
-                borderRadius: 'var(--radius-sm)',
-                cursor: loading || connecting ? 'not-allowed' : 'pointer',
-                transition: 'background 0.15s',
-                fontFamily: 'inherit',
-                color: 'var(--text)',
-                borderBottom: i < WALLET_DEFS.length - 1 ? '1px solid var(--border)' : 'none',
-                opacity: loading && loading !== def.name ? 0.5 : 1,
-              }}
-              onMouseEnter={e => { if (!loading && !connecting) (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-hover)' }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
             >
-              <div style={{ width: 36, height: 36, borderRadius: 9, background: 'var(--bg-elevated)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.25rem', flexShrink: 0 }}>
-                {def.name === 'Backpack' ? '🎒' : def.name === 'Phantom' ? '👻' : '🌟'}
+              <div className="wallet-btn-icon">{def.emoji}</div>
+              <div style={{ flex: 1 }}>
+                <div className="wallet-btn-name">{def.name}</div>
+                <div className="wallet-btn-desc">{def.desc}</div>
               </div>
-              <div style={{ flex: 1, textAlign: 'left' }}>
-                <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>{def.name}</div>
-                <div style={{ fontSize: '0.72rem', color: 'var(--text-2)' }}>{def.desc}</div>
+              <div className="wallet-btn-right">
+                {isLoading ? (
+                  <span className="loading" style={{ color: 'var(--text-2)' }} />
+                ) : isReady ? (
+                  <span className="badge badge-green">Detected</span>
+                ) : (
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-3)' }}>
+                    {isMobile ? 'Open →' : 'Install →'}
+                  </span>
+                )}
               </div>
-              {isLoading ? (
-                <span className="loading" style={{ color: 'var(--text-2)' }} />
-              ) : isReady ? (
-                <span className="badge badge-green">Detected</span>
-              ) : (
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-3)' }}>
-                  {isMobile ? 'Open →' : 'Install →'}
-                </span>
-              )}
             </button>
           )
         })}
       </div>
 
       {error && (
-        <div className="tx-status error" style={{ marginTop: 12 }}>
-          {error}
+        <div className="tx-status error" style={{ marginTop: 14 }}>
+          <span>⚠</span> {error}
         </div>
       )}
 
       {/iPhone|iPad|Android/i.test(navigator.userAgent) && (
-        <p style={{ textAlign: 'center', fontSize: '0.75rem', color: 'var(--text-3)', marginTop: 14 }}>
-          On mobile, tap a wallet to open in-app browser
+        <p style={{ textAlign: 'center', fontSize: '0.72rem', color: 'var(--text-3)', marginTop: 16, lineHeight: 1.6 }}>
+          On mobile, tap a wallet to open in the in-app browser
         </p>
       )}
+
+      <div style={{ marginTop: 20, padding: '12px 14px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontSize: '0.75rem', color: 'var(--text-3)', lineHeight: 1.7 }}>
+        <div style={{ color: 'var(--text-2)', fontWeight: 600, marginBottom: 4 }}>About X1SAFE</div>
+        Multi-asset vault on X1 Testnet. Deposit USDC.X, XNT, XEN, or XNM —
+        receive X1SAFE tokens at a $1 USD peg.
+        1 USD deposited = 1 X1SAFE token.
+      </div>
     </div>
   )
 }

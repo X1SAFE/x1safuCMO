@@ -9,6 +9,9 @@ import {
   fetchUserPosition, toBaseUnits,
 } from '../lib/vault'
 
+const ASSET_CLASSES: Record<string, string> = { USDCX: 'usdcx', XNT: 'xnt', XEN: 'xen', XNM: 'xnm' }
+const ASSET_SHORT:   Record<string, string> = { USDCX: '$', XNT: 'X', XEN: 'E', XNM: 'N' }
+
 export function Withdraw() {
   const { connection } = useConnection()
   const wallet         = useWallet()
@@ -22,7 +25,9 @@ export function Withdraw() {
   const [position,    setPosition]    = useState<{ amount: number } | null>(null)
   const [showConfirm, setShowConfirm] = useState(false)
 
-  const asset = ASSETS.find(a => a.key === assetKey)!
+  const asset    = ASSETS.find(a => a.key === assetKey)!
+  const numAmt   = parseFloat(amount) || 0
+  const posAmt   = position?.amount || 0
 
   useEffect(() => {
     if (!wallet.publicKey) return
@@ -65,110 +70,183 @@ export function Withdraw() {
 
   if (!wallet.connected) {
     return (
-      <div style={{ maxWidth: 440, margin: '32px auto', textAlign: 'center' }}>
-        <div className="card" style={{ padding: '36px 20px' }}>
-          <div style={{ fontSize: '0.85rem', color: 'var(--text-2)', marginBottom: 4 }}>Wallet not connected</div>
-          <div style={{ fontSize: '0.78rem', color: 'var(--text-3)' }}>Go to Connect tab to get started</div>
+      <div style={{ maxWidth: 480, margin: '24px auto' }}>
+        <div className="card">
+          <div className="empty-state">
+            <div className="empty-state-icon">🔐</div>
+            <div className="empty-state-title">Wallet not connected</div>
+            <div className="empty-state-sub">Connect your wallet to withdraw assets from the vault.</div>
+          </div>
         </div>
       </div>
     )
   }
 
   return (
-    <div style={{ maxWidth: 440, margin: '0 auto' }}>
-      <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: 14 }}>Withdraw</div>
-
-      {/* Position */}
-      <div className="card" style={{ marginBottom: 12 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-2)' }}>Your position (USD)</span>
-          <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>
-            {position ? `$${position.amount.toFixed(2)}` : <span style={{ color: 'var(--text-3)' }}>No position</span>}
-          </span>
-        </div>
+    <div style={{ maxWidth: 480, margin: '0 auto' }}>
+      {/* ── Page header ── */}
+      <div style={{ marginBottom: 18 }}>
+        <div className="page-title">Withdraw</div>
+        <div className="page-subtitle">Redeem your deposited assets from the vault</div>
       </div>
 
-      <div className="card">
-        {/* Receive asset */}
-        <div className="form-group">
-          <label className="form-label">Receive asset</label>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-            {ASSETS.map(a => (
-              <button
-                key={a.key}
-                className={`asset-chip${assetKey === a.key ? ' selected' : ''}`}
-                onClick={() => setAssetKey(a.key)}
-              >
-                <span style={{ fontSize: '1.2rem' }}>{a.icon}</span>
-                <span style={{ fontWeight: 600, fontSize: '0.82rem' }}>{a.label}</span>
-              </button>
-            ))}
+      {/* ── Position banner ── */}
+      <div style={{
+        background: posAmt > 0
+          ? 'linear-gradient(135deg, rgba(34,197,94,0.06) 0%, rgba(34,197,94,0.02) 100%)'
+          : 'var(--bg-elevated)',
+        border: `1px solid ${posAmt > 0 ? 'rgba(34,197,94,0.14)' : 'var(--border)'}`,
+        borderRadius: 'var(--radius-lg)',
+        padding: '18px 20px',
+        marginBottom: 14,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+      }}>
+        <div>
+          <div style={{ fontSize: '0.68rem', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 4 }}>
+            Your Position
           </div>
-        </div>
-
-        {/* Amount */}
-        <div className="form-group" style={{ marginBottom: 0 }}>
-          <label className="form-label">Amount ({asset.label})</label>
-          <div style={{ position: 'relative' }}>
-            <input
-              type="number"
-              className="form-input"
-              placeholder="0.00"
-              value={amount}
-              onChange={e => setAmount(e.target.value)}
-              style={{ paddingRight: 52 }}
-            />
-            <button
-              onClick={() => setAmount((position?.amount || 0).toFixed(6))}
-              style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-2)', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700, fontFamily: 'inherit', padding: '2px 4px' }}
-            >MAX</button>
+          <div style={{ fontSize: '1.6rem', fontWeight: 800, letterSpacing: '-0.03em', color: posAmt > 0 ? 'var(--success)' : 'var(--text-3)' }}>
+            {posAmt > 0 ? `$${posAmt.toFixed(2)}` : 'No position'}
           </div>
-        </div>
-      </div>
-
-      {/* Warning */}
-      <div style={{ padding: '10px 14px', background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)', borderRadius: 'var(--radius-sm)', fontSize: '0.78rem', color: 'var(--warning)', marginTop: 10 }}>
-        Withdraw transfers deposited assets back and reduces your position.
-      </div>
-
-      {/* Action */}
-      <div style={{ marginTop: 12 }}>
-        {error && <div className="tx-status error" style={{ marginBottom: 10 }}>{error}</div>}
-
-        {!showConfirm ? (
-          <button
-            className="btn btn-secondary btn-full"
-            onClick={() => setShowConfirm(true)}
-            disabled={!amount || parseFloat(amount) <= 0 || !position}
-          >
-            Continue
-          </button>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ padding: '10px 14px', background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 'var(--radius-sm)', fontSize: '0.82rem', color: 'var(--warning)' }}>
-              Withdraw {amount} {asset.label}?
+          {posAmt > 0 && (
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-2)', marginTop: 2 }}>
+              USD value in vault
             </div>
-            <button className="btn btn-primary btn-full" onClick={handleWithdraw} disabled={loading}>
-              {loading ? <><span className="loading" /> Processing…</> : 'Confirm withdraw'}
-            </button>
-            <button className="btn btn-secondary btn-full" onClick={() => setShowConfirm(false)} disabled={loading}>
-              Cancel
-            </button>
+          )}
+        </div>
+        {posAmt > 0 && (
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: '0.68rem', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Available</div>
+            <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--success)' }}>${posAmt.toFixed(2)}</div>
           </div>
         )}
+      </div>
 
-        {txSig && (
-          <div className="tx-status success" style={{ marginTop: 10 }}>
-            Withdrawn!{' '}
+      {/* ── Receive asset selector ── */}
+      <div className="section-header">
+        <span className="section-title">Receive As</span>
+      </div>
+
+      <div className="asset-grid" style={{ marginBottom: 14 }}>
+        {ASSETS.map(a => {
+          const cls = ASSET_CLASSES[a.key] || 'usdcx'
+          const shortIcon = ASSET_SHORT[a.key] || a.label[0]
+          return (
+            <button
+              key={a.key}
+              className={`asset-card ${cls}${assetKey === a.key ? ' selected' : ''}`}
+              onClick={() => setAssetKey(a.key)}
+              style={{ minHeight: 70 }}
+            >
+              <div className="asset-card-icon">{shortIcon}</div>
+              <div className="asset-card-symbol">{a.label}</div>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* ── Amount input ── */}
+      <div className="section-header">
+        <span className="section-title">Amount to Withdraw</span>
+        {posAmt > 0 && (
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-3)' }}>
+            Max: <strong style={{ color: 'var(--text-2)' }}>${posAmt.toFixed(2)}</strong>
+          </span>
+        )}
+      </div>
+
+      <div className="amount-input-block">
+        <div className="amount-input-row">
+          <input
+            type="number"
+            className="amount-input-big"
+            placeholder="0.00"
+            value={amount}
+            onChange={e => setAmount(e.target.value)}
+          />
+          <div className="amount-input-asset">
+            <span style={{ fontSize: '0.78rem' }}>{ASSET_SHORT[assetKey]}</span>
+            {asset.label}
+          </div>
+        </div>
+        <div className="amount-input-footer">
+          <span className="amount-usd">
+            {numAmt > 0 ? `Withdrawing ${numAmt.toFixed(4)} ${asset.label}` : 'Enter amount'}
+          </span>
+          <button
+            className="amount-max-btn"
+            onClick={() => setAmount(posAmt.toFixed(6))}
+          >
+            MAX
+          </button>
+        </div>
+      </div>
+
+      {/* ── Summary ── */}
+      {numAmt > 0 && (
+        <div className="preview-box" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', marginBottom: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: '0.8rem' }}>
+            <span style={{ color: 'var(--text-2)' }}>Withdraw</span>
+            <span style={{ fontWeight: 600 }}>{numAmt.toFixed(4)} {asset.label}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+            <span style={{ color: 'var(--text-2)' }}>Remaining position</span>
+            <span style={{ fontWeight: 600 }}>${Math.max(0, posAmt - numAmt).toFixed(2)}</span>
+          </div>
+        </div>
+      )}
+
+      {/* ── Warning ── */}
+      <div className="info-box warning" style={{ marginBottom: 14 }}>
+        Withdrawing returns your deposited assets and reduces your vault position.
+      </div>
+
+      {/* ── Action ── */}
+      {error && (
+        <div className="tx-status error" style={{ marginBottom: 12 }}>
+          <span>⚠</span> {error}
+        </div>
+      )}
+
+      {!showConfirm ? (
+        <button
+          className="btn btn-primary btn-full btn-lg"
+          onClick={() => setShowConfirm(true)}
+          disabled={!amount || numAmt <= 0 || !position}
+        >
+          Withdraw {numAmt > 0 ? `${numAmt.toFixed(4)} ${asset.label}` : ''}
+        </button>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ padding: '14px 16px', background: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.18)', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', color: 'var(--warning)', fontWeight: 500 }}>
+            Confirm: withdraw {numAmt.toFixed(4)} {asset.label}?
+          </div>
+          <button className="btn btn-primary btn-full" onClick={handleWithdraw} disabled={loading}>
+            {loading ? <><span className="loading" style={{ borderTopColor: '#000' }} /> Processing…</> : '✓ Confirm Withdraw'}
+          </button>
+          <button className="btn btn-secondary btn-full" onClick={() => setShowConfirm(false)} disabled={loading}>
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {txSig && (
+        <div className="tx-status success" style={{ marginTop: 12 }}>
+          <span>✓</span>
+          <span>
+            Withdrawn successfully!{' '}
             <a href={`${EXPLORER}/tx/${txSig}`} target="_blank" rel="noopener" style={{ color: 'var(--success)', fontWeight: 700 }}>
               View tx ↗
             </a>
-          </div>
-        )}
-      </div>
+          </span>
+        </div>
+      )}
 
-      <div style={{ marginTop: 14, fontSize: '0.7rem', color: 'var(--text-3)', textAlign: 'center' }}>
-        {IS_TESTNET ? 'Testnet' : 'Mainnet'}
+      <div className="program-footer" style={{ marginTop: 16 }}>
+        <span>{IS_TESTNET ? '🔶 Testnet' : '🟢 Mainnet'}</span>
+        <span>Vault withdraw</span>
       </div>
     </div>
   )

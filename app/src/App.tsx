@@ -17,7 +17,7 @@ import { Deposit }   from './components/Deposit'
 import { Withdraw }  from './components/Withdraw'
 import { Exit }      from './components/Exit'
 import { Connect }   from './components/Connect'
-import { RPC_URL }   from './lib/vault'
+import { RPC_URL, IS_TESTNET } from './lib/vault'
 
 declare global {
   interface Window { backpack?: any; xnft?: any }
@@ -25,12 +25,12 @@ declare global {
 
 type Tab = 'connect' | 'dashboard' | 'deposit' | 'withdraw' | 'exit'
 
-const TABS: { key: Tab; label: string }[] = [
-  { key: 'connect',   label: 'Connect'   },
-  { key: 'dashboard', label: 'Overview'  },
-  { key: 'deposit',   label: 'Deposit'   },
-  { key: 'withdraw',  label: 'Withdraw'  },
-  { key: 'exit',      label: 'Exit'      },
+const TABS: { key: Tab; label: string; icon: string }[] = [
+  { key: 'connect',   label: 'Connect',  icon: '⬡' },
+  { key: 'dashboard', label: 'Overview', icon: '◈' },
+  { key: 'deposit',   label: 'Deposit',  icon: '↓' },
+  { key: 'withdraw',  label: 'Withdraw', icon: '↑' },
+  { key: 'exit',      label: 'Exit',     icon: '✕' },
 ]
 
 function App() {
@@ -51,20 +51,29 @@ function App() {
       <header className="app-header">
         <div className="header-inner">
           <div className="brand">
-            {/* Simple shield SVG instead of lucide dep */}
             <div className="brand-icon">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/>
               </svg>
             </div>
             <div>
               <div className="brand-name">X1SAFE</div>
-              <div className="brand-sub">Multi-Asset Vault</div>
+              <div className="brand-sub">Multi-Asset Vault · X1 Testnet</div>
             </div>
           </div>
-          {isConnected && shortAddr && (
-            <span className="badge badge-green mono">{shortAddr}</span>
-          )}
+          <div className="header-right">
+            {IS_TESTNET && (
+              <span className="badge badge-testnet">Testnet</span>
+            )}
+            {isConnected && shortAddr && (
+              <span className="badge badge-wallet mono">
+                <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+                  <circle cx="4" cy="4" r="3" fill="#22c55e"/>
+                </svg>
+                {shortAddr}
+              </span>
+            )}
+          </div>
         </div>
       </header>
 
@@ -76,6 +85,7 @@ function App() {
             className={`tab-btn${tab === t.key ? ' active' : ''}`}
             onClick={() => setTab(t.key)}
           >
+            <span className="tab-icon">{t.icon}</span>
             {t.label}
           </button>
         ))}
