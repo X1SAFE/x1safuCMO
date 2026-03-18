@@ -12,6 +12,7 @@ import {
   getProgram, getVaultPDA, getPutMintPDA, getSafeMintPDA, getUserPositionPDA,
   getTokenBalance, toBaseUnits,
 } from '../lib/vault'
+import { TokenLogo } from './TokenLogo'
 
 export function Withdraw() {
   const { connection } = useConnection()
@@ -123,7 +124,7 @@ export function Withdraw() {
           padding: '16px',
         }}>
           <div style={{ fontSize: '0.65rem', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 6 }}>
-            🔒 X1SAFE_PUT
+            <span style={{display:'flex',alignItems:'center',gap:6}}><TokenLogo token="X1SAFE" size={18}/>X1SAFE_PUT</span>
           </div>
           <div style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.03em', color: putBalance > 0 ? 'var(--xnt-color)' : 'var(--text-3)' }}>
             {putBalance > 0 ? putBalance.toFixed(2) : '0.00'}
@@ -143,7 +144,7 @@ export function Withdraw() {
           padding: '16px',
         }}>
           <div style={{ fontSize: '0.65rem', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 6 }}>
-            ✅ X1SAFE (free)
+            <span style={{display:'flex',alignItems:'center',gap:6}}><TokenLogo token="X1SAFE" size={18}/>X1SAFE (free)</span>
           </div>
           <div style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.03em', color: safeBalance > 0 ? 'var(--success)' : 'var(--text-3)' }}>
             {safeBalance > 0 ? safeBalance.toFixed(2) : '0.00'}
@@ -172,7 +173,7 @@ export function Withdraw() {
             onChange={e => { setAmount(e.target.value); setError(''); setTxSig(''); setShowConfirm(false) }}
           />
           <div className="amount-input-asset" style={{ color: 'var(--xnt-color)' }}>
-            🔒 PUT
+            <span style={{display:'flex',alignItems:'center',gap:5}}><TokenLogo token="X1SAFE" size={16}/>PUT</span>
           </div>
         </div>
         <div className="amount-input-footer">

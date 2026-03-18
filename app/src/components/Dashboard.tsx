@@ -7,8 +7,7 @@ import {
   fetchAssetPrices, calcX1SAFE,
 } from '../lib/vault'
 
-const ASSET_CLASSES:     Record<string, string> = { USDCX: 'usdcx', XNT: 'xnt', XEN: 'xen' }
-const ASSET_SHORT_ICONS: Record<string, string> = { USDCX: '$', XNT: 'X', XEN: 'E' }
+import { AssetLogo } from './TokenLogo'
 
 export function Dashboard() {
   const { connection } = useConnection()
@@ -157,12 +156,10 @@ export function Dashboard() {
         {ASSETS.map(a => {
           const price = prices[a.key] || 0
           const x1safePerUnit = price * X1SAFE_PER_USD
-          const cls = ASSET_CLASSES[a.key] || 'usdcx'
-          const shortIcon = ASSET_SHORT_ICONS[a.key] || a.label[0]
           return (
             <div key={a.key} className="price-row">
               <div className="price-row-left">
-                <div className={`price-row-icon ${cls}`}>{shortIcon}</div>
+                <AssetLogo assetKey={a.key} size={32} />
                 <div>
                   <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>{a.label}</div>
                   <div style={{ fontSize: '0.7rem', color: 'var(--text-3)' }}>= {x1safePerUnit.toFixed(2)} X1SAFE_PUT</div>
@@ -219,12 +216,10 @@ export function Dashboard() {
             {ASSETS.map(a => {
               const bal = balances[a.key] || 0
               const usd = bal * (prices[a.key] || 0)
-              const cls = ASSET_CLASSES[a.key] || 'usdcx'
-              const shortIcon = ASSET_SHORT_ICONS[a.key] || a.label[0]
               return (
                 <div key={a.key} className="price-row">
                   <div className="price-row-left">
-                    <div className={`price-row-icon ${cls}`}>{shortIcon}</div>
+                    <AssetLogo assetKey={a.key} size={32} />
                     <div>
                       <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>{a.label}</div>
                       <div style={{ fontSize: '0.7rem', color: 'var(--text-3)' }}>

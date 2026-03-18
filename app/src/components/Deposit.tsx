@@ -16,12 +16,12 @@ import {
   toBaseUnits, getTokenBalance,
 } from '../lib/vault'
 import { sha256 } from '@noble/hashes/sha256'
+import { AssetLogo } from './TokenLogo'
 
 function disc(name: string): Buffer {
   return Buffer.from(sha256(new TextEncoder().encode('global:' + name))).subarray(0, 8)
 }
 
-const ASSET_ICONS:  Record<string, string> = { USDCX: '💵', XNT: '⚡', XEN: '🔥' }
 const ASSET_NAMES:  Record<string, string> = { USDCX: 'USD Coin (X1)', XNT: 'XNT Token', XEN: 'XEN Token' }
 const ASSET_COLORS: Record<string, string> = { USDCX: 'var(--usdcx-color)', XNT: 'var(--xnt-color)', XEN: 'var(--xen-color)' }
 const ASSET_CLASS:  Record<string, string> = { USDCX: 'usdcx', XNT: 'xnt', XEN: 'xen' }
@@ -154,7 +154,7 @@ export function Deposit() {
               className={`asset-card ${ASSET_CLASS[a.key] || ''}${selected ? ' selected' : ''}`}
               style={{ cursor: 'pointer' }}
             >
-              <div className="asset-card-icon" style={{ fontSize: '1.1rem' }}>{ASSET_ICONS[a.key] || a.label[0]}</div>
+              <div className="asset-card-icon"><AssetLogo assetKey={a.key} size={36} /></div>
               <div className="asset-card-symbol">{a.label}</div>
               <div className="asset-card-name">{ASSET_NAMES[a.key] || a.label}</div>
               <div className="asset-card-price">${(prices[a.key] || a.price || 0).toFixed(4)}</div>
@@ -179,7 +179,7 @@ export function Deposit() {
             onChange={e => { setAmount(e.target.value); setError(''); setTxSig('') }}
           />
           <div className="amount-input-asset">
-            <span style={{ fontSize: '1rem' }}>{ASSET_ICONS[assetKey]}</span>
+            <AssetLogo assetKey={assetKey} size={22} style={{ flexShrink: 0 }} />
             <span style={{ color: ASSET_COLORS[assetKey] }}>{asset.label}</span>
           </div>
         </div>
