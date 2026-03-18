@@ -117,47 +117,99 @@ body::before {
 
 .tab-nav {
   display: flex;
-  gap: 2px;
-  padding: 6px 14px;
+  flex-direction: column;
+  gap: 0;
   border-bottom: 1px solid var(--border);
   background: var(--bg-subtle);
-  overflow-x: auto;
-  scrollbar-width: none;
 }
 .tab-nav::-webkit-scrollbar { display: none; }
+
+/* ── Primary row ── */
+.tab-row-primary {
+  display: flex;
+  gap: 3px;
+  padding: 8px 14px 0;
+}
+/* ── Secondary row ── */
+.tab-row-secondary {
+  display: flex;
+  gap: 3px;
+  padding: 4px 14px 8px;
+}
+
+/* ── Base tab button ── */
 .tab-btn {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 7px 14px;
-  border: none;
+  gap: 5px;
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--text-2);
-  font-size: 0.8rem;
-  font-weight: 500;
+  color: var(--text-3);
   cursor: pointer;
   white-space: nowrap;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s;
   font-family: inherit;
   position: relative;
 }
-.tab-btn .tab-icon { font-size: 0.95rem; line-height: 1; opacity: 0.7; transition: opacity 0.15s; }
-.tab-btn:hover { background: var(--bg-hover); color: var(--text); }
-.tab-btn:hover .tab-icon { opacity: 1; }
-.tab-btn.active { background: var(--bg-elevated); color: var(--text); box-shadow: 0 0 0 1px var(--border-focus); }
-.tab-btn.active .tab-icon { opacity: 1; }
-.tab-btn.active::after {
-  content: '';
-  position: absolute;
-  bottom: -7px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background: var(--text);
+
+/* Primary tabs — larger */
+.tab-row-primary .tab-btn {
+  flex: 1;
+  justify-content: center;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
 }
+.tab-row-primary .tab-btn .tab-icon {
+  font-size: 1.1rem;
+  line-height: 1;
+  opacity: 0.55;
+  transition: opacity 0.15s;
+}
+
+/* Secondary tabs — smaller */
+.tab-row-secondary .tab-btn {
+  flex: 1;
+  justify-content: center;
+  flex-direction: row;
+  gap: 5px;
+  padding: 6px 8px;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+.tab-row-secondary .tab-btn .tab-icon {
+  font-size: 0.8rem;
+  line-height: 1;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+/* Hover */
+.tab-btn:hover { background: var(--bg-hover); color: var(--text-2); }
+.tab-btn:hover .tab-icon { opacity: 0.9; }
+
+/* ── Active colours per tab ── */
+/* deposit */
+.tab-btn[data-tab="deposit"].active         { background: rgba(34,197,94,0.08);  color: #22c55e; border-color: rgba(34,197,94,0.2);  box-shadow: 0 0 12px rgba(34,197,94,0.08); }
+.tab-btn[data-tab="deposit"].active .tab-icon { opacity: 1; }
+/* withdraw */
+.tab-btn[data-tab="withdraw"].active        { background: rgba(167,139,250,0.08); color: #a78bfa; border-color: rgba(167,139,250,0.2); box-shadow: 0 0 12px rgba(167,139,250,0.08); }
+.tab-btn[data-tab="withdraw"].active .tab-icon { opacity: 1; }
+/* dashboard */
+.tab-btn[data-tab="dashboard"].active       { background: rgba(59,130,246,0.08);  color: #3b82f6; border-color: rgba(59,130,246,0.2);  box-shadow: 0 0 12px rgba(59,130,246,0.08); }
+.tab-btn[data-tab="dashboard"].active .tab-icon { opacity: 1; }
+/* exit */
+.tab-btn[data-tab="exit"].active            { background: rgba(245,158,11,0.08);  color: #f59e0b; border-color: rgba(245,158,11,0.2);  }
+.tab-btn[data-tab="exit"].active .tab-icon  { opacity: 1; }
+/* redeposit */
+.tab-btn[data-tab="redeposit"].active       { background: rgba(20,184,166,0.08);  color: #14b8a6; border-color: rgba(20,184,166,0.2);  }
+.tab-btn[data-tab="redeposit"].active .tab-icon { opacity: 1; }
+/* stake */
+.tab-btn[data-tab="stake"].active           { background: rgba(251,191,36,0.08);  color: #fbbf24; border-color: rgba(251,191,36,0.2);  }
+.tab-btn[data-tab="stake"].active .tab-icon { opacity: 1; }
 
 .app-main { flex: 1; padding: 20px 16px 48px; }
 

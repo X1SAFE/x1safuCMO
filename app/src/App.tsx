@@ -28,13 +28,15 @@ declare global {
 
 type Tab = 'dashboard' | 'deposit' | 'withdraw' | 'exit' | 'redeposit' | 'stake'
 
-const TABS: { key: Tab; label: string; icon: string }[] = [
-  { key: 'dashboard', label: 'Overview',  icon: '◈' },
-  { key: 'deposit',   label: 'Deposit',   icon: '↓' },
-  { key: 'withdraw',  label: 'Withdraw',  icon: '↑' },
-  { key: 'exit',      label: 'Exit',      icon: '✕' },
-  { key: 'redeposit', label: 'Re-lock',   icon: '⟳' },
-  { key: 'stake',     label: 'Stake',     icon: '⬡' },
+const TABS_PRIMARY: { key: Tab; label: string; icon: string }[] = [
+  { key: 'deposit',   label: 'Deposit',  icon: '↓' },
+  { key: 'withdraw',  label: 'Withdraw', icon: '↑' },
+  { key: 'dashboard', label: 'Overview', icon: '◈' },
+]
+const TABS_SECONDARY: { key: Tab; label: string; icon: string }[] = [
+  { key: 'exit',      label: 'Exit',    icon: '✕' },
+  { key: 'redeposit', label: 'Re-lock', icon: '⟳' },
+  { key: 'stake',     label: 'Stake',   icon: '⬡' },
 ]
 
 const SITE_URL = 'https://x1safu-cmo.vercel.app'
@@ -352,16 +354,34 @@ function App() {
 
       {/* ── Tab Nav (no Connect tab) ── */}
       <nav className="tab-nav">
-        {TABS.map(t => (
-          <button
-            key={t.key}
-            className={`tab-btn${tab === t.key ? ' active' : ''}`}
-            onClick={() => setTab(t.key)}
-          >
-            <span className="tab-icon">{t.icon}</span>
-            {t.label}
-          </button>
-        ))}
+        {/* Primary row */}
+        <div className="tab-row-primary">
+          {TABS_PRIMARY.map(t => (
+            <button
+              key={t.key}
+              data-tab={t.key}
+              className={`tab-btn${tab === t.key ? ' active' : ''}`}
+              onClick={() => setTab(t.key)}
+            >
+              <span className="tab-icon">{t.icon}</span>
+              {t.label}
+            </button>
+          ))}
+        </div>
+        {/* Secondary row */}
+        <div className="tab-row-secondary">
+          {TABS_SECONDARY.map(t => (
+            <button
+              key={t.key}
+              data-tab={t.key}
+              className={`tab-btn${tab === t.key ? ' active' : ''}`}
+              onClick={() => setTab(t.key)}
+            >
+              <span className="tab-icon">{t.icon}</span>
+              {t.label}
+            </button>
+          ))}
+        </div>
       </nav>
 
       {/* ── Content ── */}
