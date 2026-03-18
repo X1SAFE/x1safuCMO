@@ -16,11 +16,9 @@ export const EXPLORER   = IS_TESTNET
   : 'https://explorer.mainnet.x1.xyz'
 
 // ── X1SAFE Token Rate ─────────────────────────────────────────────────────────
-// 1 USD = 100 X1SAFE  →  1 X1SAFE = $0.01
 export const X1SAFE_PER_USD = 1
 
 // ── Supported Assets ─────────────────────────────────────────────────────────
-// NOTE: Mints below are testnet mints; prices fetched from X1 Mainnet pool data
 export const MINTS = {
   USDCX: new PublicKey('3VAPVRUV25jVm2EzuQpQpJWugLH4AzBPWJK5sQyZJuct'),
   XNT:   new PublicKey('AuK65QqWmPTsvfKS4FAdJ6idWiw8zvzM68tXnEYGRMTC'),
@@ -34,27 +32,26 @@ export const ASSETS = [
 ]
 
 // ── PDAs ──────────────────────────────────────────────────────────────────────
+// Vault state PDA: seeds = [b"vault"]
 export const getVaultPDA = () =>
   PublicKey.findProgramAddressSync([Buffer.from('vault')], PROGRAM_ID)[0]
 
+// User position PDA: seeds = [b"position", user]
 export const getUserPositionPDA = (user: PublicKey) =>
   PublicKey.findProgramAddressSync(
     [Buffer.from('position'), user.toBuffer()],
     PROGRAM_ID
   )[0]
 
-// vaultTokenAccount = ATA(vaultPDA, mint)
-// The on-chain program uses AToken CPI — vault token account is a standard ATA
-// owned by the vault PDA (allowOwnerOffCurve=true required for PDA owners)
+// Vault token account: ATA owned by the vault PDA
+// The on-chain program uses vault PDA as token authority (signs with [b"vault", bump])
+// So vault_token_account = getAssociatedTokenAddress(mint, vaultPDA, allowOwnerOffCurve=true)
 export const getVaultTokenAccount = (mint: PublicKey): PublicKey => {
   const vault = getVaultPDA()
   return getAssociatedTokenAddressSync(mint, vault, true)
 }
 
-// Alias kept for any existing callers
-export const getVaultTokenAccountPDA = getVaultTokenAccount
-
-// ── IDL — matches lib.rs exactly ─────────────────────────────────────────────
+// ── IDL — exact match to deployed program (F2JnWVnjP1h6...) ──────────────────
 export const IDL: any = {
   version: '0.1.0',
   name: 'x1safu',
@@ -71,25 +68,25 @@ export const IDL: any = {
     {
       name: 'deposit',
       accounts: [
-        { name: 'user',               isMut: true,  isSigner: true  },
-        { name: 'vault',              isMut: true,  isSigner: false },
-        { name: 'userPosition',       isMut: true,  isSigner: false },
-        { name: 'userTokenAccount',   isMut: true,  isSigner: false },
-        { name: 'vaultTokenAccount',  isMut: true,  isSigner: false },
-        { name: 'tokenProgram',       isMut: false, isSigner: false },
-        { name: 'systemProgram',      isMut: false, isSigner: false },
+        { name: 'user',              isMut: true,  isSigner: true  },
+        { name: 'vault',             isMut: true,  isSigner: false },
+        { name: 'userPosition',      isMut: true,  isSigner: false },
+        { name: 'userTokenAccount',  isMut: true,  isSigner: false },
+        { name: 'vaultTokenAccount', isMut: true,  isSigner: false },
+        { name: 'tokenProgram',      isMut: false, isSigner: false },
+        { name: 'systemProgram',     isMut: false, isSigner: false },
       ],
       args: [{ name: 'amount', type: 'u64' }],
     },
     {
       name: 'withdraw',
       accounts: [
-        { name: 'user',               isMut: true,  isSigner: true  },
-        { name: 'vault',              isMut: true,  isSigner: false },
-        { name: 'userPosition',       isMut: true,  isSigner: false },
-        { name: 'userTokenAccount',   isMut: true,  isSigner: false },
-        { name: 'vaultTokenAccount',  isMut: true,  isSigner: false },
-        { name: 'tokenProgram',       isMut: false, isSigner: false },
+        { name: 'user',              isMut: true,  isSigner: true  },
+        { name: 'vault',             isMut: true,  isSigner: false },
+        { name: 'userPosition',      isMut: true,  isSigner: false },
+        { name: 'userTokenAccount',  isMut: true,  isSigner: false },
+        { name: 'vaultTokenAccount', isMut: true,  isSigner: false },
+        { name: 'tokenProgram',      isMut: false, isSigner: false },
       ],
       args: [{ name: 'amount', type: 'u64' }],
     },
@@ -173,8 +170,6 @@ export async function getTokenBalance(
 }
 
 // ── Oracle: xDEX pool list → real-time prices ─────────────────────────────────
-// Strategy: fetch X1 Mainnet pool list, find highest-TVL pool for each token,
-// extract token1_price / token2_price (already in USD)
 export async function fetchAssetPrices(): Promise<Record<string, number>> {
   const fallback = { USDCX: 1.0, XNT: 0.35, XEN: 0.00000000005 }
   try {
@@ -196,22 +191,15 @@ export async function fetchAssetPrices(): Promise<Record<string, number>> {
       const t2   = p.token2_symbol ?? ''
       const tvl  = p.tvl ?? 0
 
-      // XNT / WXNT price
       if (t1 === 'WXNT' && tvl > xntTvl && p.token1_price > 0) {
-        xntPrice = p.token1_price
-        xntTvl   = tvl
+        xntPrice = p.token1_price; xntTvl = tvl
       } else if (t2 === 'WXNT' && tvl > xntTvl && p.token2_price > 0) {
-        xntPrice = p.token2_price
-        xntTvl   = tvl
+        xntPrice = p.token2_price; xntTvl = tvl
       }
-
-      // XEN price (very small number)
       if (t2 === 'XEN' && tvl > xenTvl && p.token2_price > 0) {
-        xenPrice = p.token2_price
-        xenTvl   = tvl
+        xenPrice = p.token2_price; xenTvl = tvl
       } else if (t1 === 'XEN' && tvl > xenTvl && p.token1_price > 0) {
-        xenPrice = p.token1_price
-        xenTvl   = tvl
+        xenPrice = p.token1_price; xenTvl = tvl
       }
     }
 
@@ -225,9 +213,7 @@ export async function fetchAssetPrices(): Promise<Record<string, number>> {
   }
 }
 
-// ── X1SAFE amount calculation ─────────────────────────────────────────────────
-// assetAmount (human units) × assetPriceUSD × X1SAFE_PER_USD = X1SAFE received
-// e.g. 1 XNT × $0.3534 × 100 = 35.34 X1SAFE
+// ── X1SAFE calculation ────────────────────────────────────────────────────────
 export function calcX1SAFE(assetAmount: number, priceUsd: number): number {
   return assetAmount * priceUsd * X1SAFE_PER_USD
 }
