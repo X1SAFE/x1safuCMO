@@ -28,13 +28,24 @@ export const MINTS = {
   USDCX: new PublicKey('6QNPqoF6GGhCFjTTQGxkpJkrH5ueS85b5RpX3GXdUSVw'),
   XNT:   new PublicKey('CDREeqfWSxQvPa9ofxVrHFP5VZeF2xSc2EtAdXmNumuW'),
   XEN:   new PublicKey('HcCMidf2rU8wy5jQ9doNC5tnRancRAJdhhD8oFbYZpxj'),
+  XNM:   new PublicKey('XNMbEwZFFBKQhqyW3taa8cAUp1xBUHfyzRFJQvZET4m'),
 }
 
-export const ASSETS = [
-  { key: 'USDCX', label: 'USDC.X', icon: '💵', mint: MINTS.USDCX, decimals: 6, price: 1.0 },
-  { key: 'XNT',   label: 'XNT',    icon: '🪙', mint: MINTS.XNT,   decimals: 9, price: 0.0 },
-  { key: 'XEN',   label: 'XEN',    icon: '⚡', mint: MINTS.XEN,   decimals: 9, price: 0.0 },
+export interface AssetInfo {
+  key: string
+  label: string
+  icon: string
+  logoUrl?: string
+  mint: PublicKey
+  decimals: number
+  price: number
+}
 
+export const ASSETS: AssetInfo[] = [
+  { key: 'USDCX', label: 'USDC.X', icon: '💵', logoUrl: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png', mint: MINTS.USDCX, decimals: 6, price: 1.0 },
+  { key: 'XNT',   label: 'XNT',    icon: '🪙', logoUrl: 'https://x1.xyz/logo.png', mint: MINTS.XNT,   decimals: 9, price: 0.0 },
+  { key: 'XEN',   label: 'XEN',    icon: '⚡', logoUrl: 'https://xen.network/logo.png', mint: MINTS.XEN,   decimals: 9, price: 0.0 },
+  { key: 'XNM',   label: 'XNM',    icon: '🔷', logoUrl: 'https://x1.xyz/xnm-logo.png', mint: MINTS.XNM,   decimals: 9, price: 0.0 },
 ]
 
 // ── PDAs ──────────────────────────────────────────────────────────────────────
@@ -456,7 +467,7 @@ export async function getTokenBalance(
 
 // ── Oracle: xDEX pool list → real-time prices ─────────────────────────────────
 export async function fetchAssetPrices(): Promise<Record<string, number>> {
-  const fallback = { USDCX: 1.0, XNT: 0.35, XEN: 0.00000000005 }
+  const fallback = { USDCX: 1.0, XNT: 0.35, XEN: 0.00000000005, XNM: 0.001 }
   try {
     const res = await fetch(
       'https://api.xdex.xyz/api/xendex/pool/list?network=X1%20Mainnet',
@@ -466,7 +477,7 @@ export async function fetchAssetPrices(): Promise<Record<string, number>> {
     const data  = await res.json()
     const pools: any[] = data?.data ?? data ?? []
 
-    let xntPrice = 0, xntTvl = 0, xenPrice = 0, xenTvl = 0
+    let xntPrice = 0, xntTvl = 0, xenPrice = 0, xenTvl = 0, xnmPrice = 0, xnmTvl = 0
 
     for (const p of pools) {
       const t1  = p.token1_symbol ?? ''
@@ -476,12 +487,15 @@ export async function fetchAssetPrices(): Promise<Record<string, number>> {
       else if (t2 === 'WXNT' && tvl > xntTvl && p.token2_price > 0) { xntPrice = p.token2_price; xntTvl = tvl }
       if (t2 === 'XEN' && tvl > xenTvl && p.token2_price > 0) { xenPrice = p.token2_price; xenTvl = tvl }
       else if (t1 === 'XEN' && tvl > xenTvl && p.token1_price > 0) { xenPrice = p.token1_price; xenTvl = tvl }
+      if (t2 === 'XNM' && tvl > xnmTvl && p.token2_price > 0) { xnmPrice = p.token2_price; xnmTvl = tvl }
+      else if (t1 === 'XNM' && tvl > xnmTvl && p.token1_price > 0) { xnmPrice = p.token1_price; xnmTvl = tvl }
     }
 
     return {
       USDCX: 1.0,
       XNT:   xntPrice > 0 ? xntPrice : fallback.XNT,
       XEN:   xenPrice > 0 ? xenPrice : fallback.XEN,
+      XNM:   xnmPrice > 0 ? xnmPrice : fallback.XNM,
     }
   } catch { return fallback }
 }
