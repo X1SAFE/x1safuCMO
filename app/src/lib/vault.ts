@@ -30,15 +30,15 @@ export const PRICE_SCALE    = 1_000_000 // price_usd stored × 10^6
 
 // ── Supported Assets ─────────────────────────────────────────────────────────
 export const MINTS = {
-  USDCX: new PublicKey('3VAPVRUV25jVm2EzuQpQpJWugLH4AzBPWJK5sQyZJuct'),
-  XNT:   new PublicKey('AuK65QqWmPTsvfKS4FAdJ6idWiw8zvzM68tXnEYGRMTC'),
+  USDCX: new PublicKey('6QNPqoF6GGhCFjTTQGxkpJkrH5ueS85b5RpX3GXdUSVw'),
+  XNT:   new PublicKey('CDREeqfWSxQvPa9ofxVrHFP5VZeF2xSc2EtAdXmNumuW'),
   XEN:   new PublicKey('HcCMidf2rU8wy5jQ9doNC5tnRancRAJdhhD8oFbYZpxj'),
 }
 
 export const ASSETS = [
   { key: 'USDCX', label: 'USDC.X', icon: '💵', mint: MINTS.USDCX, decimals: 6, price: 1.0 },
-  { key: 'XNT',   label: 'XNT',    icon: '🪙', mint: MINTS.XNT,   decimals: 6, price: 0.0 },
-  { key: 'XEN',   label: 'XEN',    icon: '⚡', mint: MINTS.XEN,   decimals: 6, price: 0.0 },
+  { key: 'XNT',   label: 'XNT',    icon: '🪙', mint: MINTS.XNT,   decimals: 9, price: 0.0 },
+
 ]
 
 // ── PDAs ──────────────────────────────────────────────────────────────────────
