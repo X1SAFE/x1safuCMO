@@ -13,25 +13,29 @@ import { BackpackWalletAdapter } from '@solana/wallet-adapter-backpack'
 import '@solana/wallet-adapter-react-ui/styles.css'
 import './App.css'
 
-import { Dashboard } from './components/Dashboard'
-import { Deposit }   from './components/Deposit'
-import { Withdraw }  from './components/Withdraw'
-import { Exit }      from './components/Exit'
-import { Connect }   from './components/Connect'
+import { Dashboard }  from './components/Dashboard'
+import { Deposit }    from './components/Deposit'
+import { Withdraw }   from './components/Withdraw'
+import { Exit }       from './components/Exit'
+import { Redeposit }  from './components/Redeposit'
+import { Stake }      from './components/Stake'
+import { Connect }    from './components/Connect'
 import { RPC_URL, IS_TESTNET } from './lib/vault'
 
 declare global {
   interface Window { backpack?: any; xnft?: any }
 }
 
-type Tab = 'connect' | 'dashboard' | 'deposit' | 'withdraw' | 'exit'
+type Tab = 'connect' | 'dashboard' | 'deposit' | 'withdraw' | 'exit' | 'redeposit' | 'stake'
 
 const TABS: { key: Tab; label: string; icon: string }[] = [
-  { key: 'connect',   label: 'Connect',  icon: '⬡' },
-  { key: 'dashboard', label: 'Overview', icon: '◈' },
-  { key: 'deposit',   label: 'Deposit',  icon: '↓' },
-  { key: 'withdraw',  label: 'Withdraw', icon: '↑' },
-  { key: 'exit',      label: 'Exit',     icon: '✕' },
+  { key: 'connect',   label: 'Connect',   icon: '⬡' },
+  { key: 'dashboard', label: 'Overview',  icon: '◈' },
+  { key: 'deposit',   label: 'Deposit',   icon: '↓' },
+  { key: 'withdraw',  label: 'Withdraw',  icon: '↑' },
+  { key: 'exit',      label: 'Exit',      icon: '✕' },
+  { key: 'redeposit', label: 'Re-lock',   icon: '⟳' },
+  { key: 'stake',     label: 'Stake',     icon: '⬡' },
 ]
 
 function App() {
@@ -99,6 +103,8 @@ function App() {
         {tab === 'deposit'   && <Deposit />}
         {tab === 'withdraw'  && <Withdraw />}
         {tab === 'exit'      && <Exit />}
+        {tab === 'redeposit' && <Redeposit />}
+        {tab === 'stake'     && <Stake />}
       </main>
     </div>
   )

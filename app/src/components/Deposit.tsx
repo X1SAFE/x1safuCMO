@@ -1,22 +1,27 @@
 import { useState, useEffect } from 'react'
 import { useConnection, useWallet, useAnchorWallet } from '@solana/wallet-adapter-react'
-import { AnchorProvider }       from '@coral-xyz/anchor'
-import { getAssociatedTokenAddress, createAssociatedTokenAccountInstruction, getAccount } from '@solana/spl-token'
-import { Transaction }          from '@solana/web3.js'
+import { AnchorProvider } from '@coral-xyz/anchor'
+import {
+  getAssociatedTokenAddress,
+  createAssociatedTokenAccountInstruction,
+  getAccount,
+} from '@solana/spl-token'
+import { Transaction } from '@solana/web3.js'
 import {
   ASSETS, EXPLORER, IS_TESTNET, X1SAFE_PER_USD,
-  getProgram, getVaultPDA, getVaultTokenAccount, getUserPositionPDA,
+  getProgram, getVaultPDA, getAssetConfigPDA, getReserveAccount,
+  getPutMintPDA, getUserPositionPDA,
   getTokenBalance, fetchAssetPrices, calcX1SAFE, toBaseUnits,
 } from '../lib/vault'
 
-const ASSET_CLASSES: Record<string, string> = { USDCX: 'usdcx', XNT: 'xnt', XEN: 'xen', XNM: 'xnm' }
-const ASSET_SHORT:   Record<string, string> = { USDCX: '$', XNT: 'X', XEN: 'E', XNM: 'N' }
-const ASSET_NAMES:   Record<string, string> = { USDCX: 'USD Coin (X1)', XNT: 'XNT Token', XEN: 'XEN Token', XNM: 'XNM Token' }
+const ASSET_CLASSES: Record<string, string> = { USDCX: 'usdcx', XNT: 'xnt', XEN: 'xen' }
+const ASSET_SHORT:   Record<string, string> = { USDCX: '$', XNT: 'X', XEN: 'E' }
+const ASSET_NAMES:   Record<string, string> = { USDCX: 'USD Coin (X1)', XNT: 'XNT Token', XEN: 'XEN Token' }
 
 export function Deposit() {
-  const { connection }  = useConnection()
-  const wallet          = useWallet()
-  const anchorWallet    = useAnchorWallet()
+  const { connection } = useConnection()
+  const wallet         = useWallet()
+  const anchorWallet   = useAnchorWallet()
 
   const [amount,       setAmount]       = useState('')
   const [assetKey,     setAssetKey]     = useState('USDCX')
@@ -61,61 +66,64 @@ export function Deposit() {
 
   const handleDeposit = async () => {
     if (!wallet.publicKey || !anchorWallet || !amount) return
-    setLoading(true)
-    setError('')
-    setTxSig('')
+    setLoading(true); setError(''); setTxSig('')
     try {
-      const provider          = new AnchorProvider(connection, anchorWallet, { commitment: 'confirmed' })
-      const program           = getProgram(provider)
-      const vault             = getVaultPDA()
-      const userPosition      = getUserPositionPDA(wallet.publicKey)
-      const userTokenAccount  = await getAssociatedTokenAddress(asset.mint, wallet.publicKey)
-      // vault_token_account = ATA(vaultPDA, mint) — vault PDA is the token authority
-      const vaultTokenAccount = getVaultTokenAccount(asset.mint)
+      const provider       = new AnchorProvider(connection, anchorWallet, { commitment: 'confirmed' })
+      const program        = getProgram(provider)
+      const vault          = getVaultPDA()
+      const assetConfig    = getAssetConfigPDA(asset.mint)
+      const reserveAccount = getReserveAccount(asset.mint)
+      const putMint        = getPutMintPDA()
+      const userPosition   = getUserPositionPDA(wallet.publicKey)
 
-      // Step 1: Create vault ATA if it doesn't exist yet (first deposit for this token)
-      try {
-        await getAccount(connection, vaultTokenAccount)
-      } catch {
-        // Vault ATA doesn't exist — create it first
-        // createAssociatedTokenAccountInstruction(payer, ataAddress, owner, mint)
-        const createAtaTx = new Transaction()
-        createAtaTx.add(
-          createAssociatedTokenAccountInstruction(
-            wallet.publicKey,   // payer (pays for account creation)
-            vaultTokenAccount,  // the ATA address to create
-            vault,              // owner = vault PDA
-            asset.mint          // token mint
-          )
+      const userAssetAccount = await getAssociatedTokenAddress(asset.mint, wallet.publicKey)
+      const userPutAta       = await getAssociatedTokenAddress(putMint, wallet.publicKey)
+
+      // Ensure vault reserve ATA exists
+      try { await getAccount(connection, reserveAccount) } catch {
+        const tx = new Transaction()
+        tx.add(createAssociatedTokenAccountInstruction(wallet.publicKey, reserveAccount, vault, asset.mint))
+        tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash
+        tx.feePayer = wallet.publicKey
+        const signed = await wallet.signTransaction!(tx)
+        await connection.confirmTransaction(
+          await connection.sendRawTransaction(signed.serialize()),
+          'confirmed'
         )
-        createAtaTx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash
-        createAtaTx.feePayer = wallet.publicKey
-        const signed = await wallet.signTransaction!(createAtaTx)
-        const sig = await connection.sendRawTransaction(signed.serialize(), { skipPreflight: false })
-        // Wait for confirmation before proceeding
-        await connection.confirmTransaction(sig, 'confirmed')
       }
 
-      // Step 2: Execute deposit
+      // Ensure user PUT ATA exists
+      try { await getAccount(connection, userPutAta) } catch {
+        const tx = new Transaction()
+        tx.add(createAssociatedTokenAccountInstruction(wallet.publicKey, userPutAta, wallet.publicKey, putMint))
+        tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash
+        tx.feePayer = wallet.publicKey
+        const signed = await wallet.signTransaction!(tx)
+        await connection.confirmTransaction(
+          await connection.sendRawTransaction(signed.serialize()),
+          'confirmed'
+        )
+      }
+
       const amountBN = toBaseUnits(parseFloat(amount), asset.decimals)
       const tx = await program.methods
         .deposit(amountBN)
         .accounts({
-          user:              wallet.publicKey,
+          user: wallet.publicKey,
           vault,
+          assetConfig,
+          reserveAccount,
+          userAssetAccount,
+          putMint,
+          userPutAta,
           userPosition,
-          userTokenAccount,
-          vaultTokenAccount,
         })
         .rpc()
 
-      setTxSig(tx)
-      setAmount('')
+      setTxSig(tx); setAmount('')
     } catch (e: any) {
       setError(e?.message || 'Transaction failed')
-    } finally {
-      setLoading(false)
-    }
+    } finally { setLoading(false) }
   }
 
   if (!wallet.connected) {
@@ -125,7 +133,7 @@ export function Deposit() {
           <div className="empty-state">
             <div className="empty-state-icon">🔐</div>
             <div className="empty-state-title">Wallet not connected</div>
-            <div className="empty-state-sub">Connect your wallet from the Connect tab to start depositing assets.</div>
+            <div className="empty-state-sub">Connect your wallet to deposit.</div>
           </div>
         </div>
       </div>
@@ -136,10 +144,9 @@ export function Deposit() {
     <div style={{ maxWidth: 480, margin: '0 auto' }}>
       <div style={{ marginBottom: 18 }}>
         <div className="page-title">Deposit</div>
-        <div className="page-subtitle">Select an asset and amount to deposit into the vault</div>
+        <div className="page-subtitle">Deposit collateral → receive X1SAFE_PUT (locked receipt)</div>
       </div>
 
-      {/* Asset selector */}
       <div className="section-header">
         <span className="section-title">Select Asset</span>
         <button
@@ -153,7 +160,7 @@ export function Deposit() {
 
       <div className="asset-grid">
         {ASSETS.map(a => {
-          const cls  = ASSET_CLASSES[a.key] || 'usdcx'
+          const cls   = ASSET_CLASSES[a.key] || 'usdcx'
           const short = ASSET_SHORT[a.key] || a.label[0]
           const name  = ASSET_NAMES[a.key] || a.label
           const price = prices[a.key] || 0
@@ -176,7 +183,6 @@ export function Deposit() {
         })}
       </div>
 
-      {/* Amount input */}
       <div className="section-header" style={{ marginTop: 4 }}>
         <span className="section-title">Amount</span>
         <span style={{ fontSize: '0.72rem', color: 'var(--text-3)' }}>
@@ -207,7 +213,6 @@ export function Deposit() {
         </div>
       </div>
 
-      {/* Conversion preview */}
       {numAmount > 0 && (
         <div className="conversion-card">
           <div className="conversion-row">
@@ -215,7 +220,7 @@ export function Deposit() {
             <span className="value">{numAmount.toFixed(4)} {asset.label}</span>
           </div>
           <div className="conversion-row">
-            <span className="label">Asset price</span>
+            <span className="label">Oracle price</span>
             <span className="value">${assetPrice.toPrecision(4)}</span>
           </div>
           <div className="conversion-row">
@@ -225,23 +230,21 @@ export function Deposit() {
           <div className="conversion-divider" />
           <div className="conversion-total">
             <span className="label">→ You receive</span>
-            <span className="value">{x1safeAmount.toFixed(2)} X1SAFE</span>
+            <span className="value">{x1safeAmount.toFixed(2)} X1SAFE_PUT</span>
           </div>
         </div>
       )}
 
       <div style={{ fontSize: '0.72rem', color: 'var(--text-3)', marginBottom: 14, textAlign: 'center' }}>
-        $1 USD = {X1SAFE_PER_USD} X1SAFE token · price via xDEX
+        $1 USD = {X1SAFE_PER_USD} X1SAFE_PUT · PUT is locked (non-transferable receipt)
       </div>
 
-      {/* Error */}
       {error && (
         <div className="tx-status error" style={{ marginBottom: 12 }}>
           <span>⚠</span> {error}
         </div>
       )}
 
-      {/* Submit */}
       <button
         className="btn btn-primary btn-full btn-lg"
         onClick={handleDeposit}
@@ -249,16 +252,14 @@ export function Deposit() {
       >
         {loading
           ? <><span className="loading" style={{ borderTopColor: '#000' }} /> Processing…</>
-          : `Deposit ${numAmount > 0 ? `${numAmount.toFixed(4)} ${asset.label}` : ''}`
-        }
+          : `Deposit ${numAmount > 0 ? `${numAmount.toFixed(4)} ${asset.label}` : ''}`}
       </button>
 
-      {/* Success */}
       {txSig && (
         <div className="tx-status success" style={{ marginTop: 12 }}>
           <span>✓</span>
           <span>
-            Deposited successfully!{' '}
+            Deposited!{' '}
             <a href={`${EXPLORER}/tx/${txSig}`} target="_blank" rel="noopener" style={{ color: 'var(--success)', fontWeight: 700 }}>
               View tx ↗
             </a>
@@ -268,7 +269,7 @@ export function Deposit() {
 
       <div className="program-footer" style={{ marginTop: 16 }}>
         <span>{IS_TESTNET ? '🔶 Testnet' : '🟢 Mainnet'}</span>
-        <span>Multi-asset vault deposit</span>
+        <span>Flying Tulip PUT model</span>
       </div>
     </div>
   )
