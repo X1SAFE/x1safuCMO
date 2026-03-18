@@ -120,11 +120,13 @@ pub mod x1safu {
         require!(!ctx.accounts.vault.paused, ErrorCode::VaultPaused);
         require!(price_usd > 0, ErrorCode::InvalidOraclePrice);
 
-        // put_amount = amount × price_usd × 100 / (10^decimals × 1_000_000)
+        // put_amount = amount × price_usd × 100 × 10^put_decimals / (10^asset_decimals × PRICE_SCALE)
+        // PUT mint has 9 decimals; PRICE_SCALE = 1_000_000 (prices stored ×10^6)
         let base = 10u128.pow(decimals as u32);
         let put_amount = (amount as u128)
             .checked_mul(price_usd as u128).ok_or(ErrorCode::MathOverflow)?
             .checked_mul(X1SAFE_PER_USD as u128).ok_or(ErrorCode::MathOverflow)?
+            .checked_mul(1_000_000_000u128).ok_or(ErrorCode::MathOverflow)? // 10^put_decimals
             .checked_div(base.checked_mul(PRICE_SCALE).ok_or(ErrorCode::MathOverflow)?)
             .ok_or(ErrorCode::MathOverflow)? as u64;
 
