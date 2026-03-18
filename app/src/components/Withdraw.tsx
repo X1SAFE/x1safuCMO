@@ -23,15 +23,23 @@ export function Withdraw() {
   const [txSig,       setTxSig]       = useState('')
   const [error,       setError]       = useState('')
   const [putBalance,  setPutBalance]  = useState(0)
+  const [safeBalance, setSafeBalance] = useState(0)
   const [showConfirm, setShowConfirm] = useState(false)
 
   const numAmt = parseFloat(amount) || 0
+  const isInsufficient = numAmt > putBalance && putBalance > 0
+  const canWithdraw = !loading && numAmt > 0 && !isInsufficient && putBalance > 0 && !!anchorWallet
 
   const load = async () => {
     if (!wallet.publicKey) return
-    const putMint = getPutMintPDA()
-    const bal = await getTokenBalance(connection, wallet.publicKey, putMint)
-    setPutBalance(bal)
+    const putMint  = getPutMintPDA()
+    const safeMint = getSafeMintPDA()
+    const [put, safe] = await Promise.all([
+      getTokenBalance(connection, wallet.publicKey, putMint),
+      getTokenBalance(connection, wallet.publicKey, safeMint),
+    ])
+    setPutBalance(put)
+    setSafeBalance(safe)
   }
 
   useEffect(() => { load() }, [wallet.publicKey, connection, txSig])
@@ -47,7 +55,7 @@ export function Withdraw() {
       const safeMint     = getSafeMintPDA()
       const userPosition = getUserPositionPDA(wallet.publicKey)
 
-      const userPutAccount  = await getAssociatedTokenAddress(putMint, wallet.publicKey)
+      const userPutAccount  = await getAssociatedTokenAddress(putMint,  wallet.publicKey)
       const userSafeAccount = await getAssociatedTokenAddress(safeMint, wallet.publicKey)
 
       // Ensure user safe ATA exists
@@ -76,7 +84,11 @@ export function Withdraw() {
         })
         .rpc()
 
-      setTxSig(tx); setAmount(''); setShowConfirm(false)
+      setTxSig(tx)
+      setAmount('')
+      setShowConfirm(false)
+      // Refresh balances
+      await load()
     } catch (e: any) {
       setError(e?.message || 'Transaction failed')
     } finally { setLoading(false) }
@@ -84,135 +96,237 @@ export function Withdraw() {
 
   if (!wallet.connected) {
     return (
-      <div style={{ maxWidth: 480, margin: '24px auto' }}>
-        <div className="card">
-          <div className="empty-state">
-            <div className="empty-state-icon">🔐</div>
-            <div className="empty-state-title">Wallet not connected</div>
-            <div className="empty-state-sub">Connect your wallet to withdraw PUT.</div>
-          </div>
+      <div className="tab-content">
+        <div className="empty-state">
+          <div className="empty-state-icon">🔐</div>
+          <div className="empty-state-text">Connect Wallet to Withdraw</div>
+          <div className="empty-state-sub">Connect your wallet to access your vault receipts.</div>
         </div>
       </div>
     )
   }
 
   return (
-    <div style={{ maxWidth: 480, margin: '0 auto' }}>
-      <div style={{ marginBottom: 18 }}>
-        <div className="page-title">Withdraw</div>
-        <div className="page-subtitle">Burn X1SAFE_PUT → receive X1SAFE (free, 1:1)</div>
-      </div>
+    <div className="tab-content">
 
-      <div className="info-box" style={{ marginBottom: 14, fontSize: '0.82rem' }}>
-        Your PUT is locked collateral. Withdrawing converts it to free X1SAFE you can trade or stake. Collateral stays in the vault.
-      </div>
+      {/* ── Balance cards ── */}
+      <div className="form-label" style={{ marginBottom: 10 }}>Your Vault Receipts</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
 
-      <div style={{
-        background: putBalance > 0 ? 'linear-gradient(135deg, rgba(34,197,94,0.06) 0%, rgba(34,197,94,0.02) 100%)' : 'var(--bg-elevated)',
-        border: `1px solid ${putBalance > 0 ? 'rgba(34,197,94,0.14)' : 'var(--border)'}`,
-        borderRadius: 'var(--radius-lg)',
-        padding: '18px 20px',
-        marginBottom: 14,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-      }}>
-        <div>
-          <div style={{ fontSize: '0.68rem', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 4 }}>
-            X1SAFE_PUT Balance
+        {/* PUT balance */}
+        <div style={{
+          background: putBalance > 0
+            ? 'linear-gradient(135deg, rgba(147,51,234,0.07) 0%, rgba(147,51,234,0.02) 100%)'
+            : 'var(--bg-elevated)',
+          border: `1px solid ${putBalance > 0 ? 'rgba(147,51,234,0.2)' : 'var(--border)'}`,
+          borderRadius: 'var(--radius)',
+          padding: '16px',
+        }}>
+          <div style={{ fontSize: '0.65rem', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 6 }}>
+            🔒 X1SAFE_PUT
           </div>
-          <div style={{ fontSize: '1.6rem', fontWeight: 800, letterSpacing: '-0.03em', color: putBalance > 0 ? 'var(--success)' : 'var(--text-3)' }}>
-            {putBalance > 0 ? putBalance.toFixed(2) : 'No PUT'}
+          <div style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.03em', color: putBalance > 0 ? 'var(--xnt-color)' : 'var(--text-3)' }}>
+            {putBalance > 0 ? putBalance.toFixed(2) : '0.00'}
+          </div>
+          <div style={{ fontSize: '0.65rem', color: 'var(--text-3)', marginTop: 4 }}>
+            Locked receipt
           </div>
         </div>
-        {putBalance > 0 && (
-          <button className="btn btn-sm" style={{ background: 'rgba(34,197,94,0.08)', color: 'var(--success)', border: '1px solid rgba(34,197,94,0.2)' }}
-            onClick={() => setAmount(putBalance.toFixed(6))}>
-            Max
-          </button>
-        )}
+
+        {/* X1SAFE free balance */}
+        <div style={{
+          background: safeBalance > 0
+            ? 'linear-gradient(135deg, rgba(34,197,94,0.07) 0%, rgba(34,197,94,0.02) 100%)'
+            : 'var(--bg-elevated)',
+          border: `1px solid ${safeBalance > 0 ? 'rgba(34,197,94,0.2)' : 'var(--border)'}`,
+          borderRadius: 'var(--radius)',
+          padding: '16px',
+        }}>
+          <div style={{ fontSize: '0.65rem', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 6 }}>
+            ✅ X1SAFE (free)
+          </div>
+          <div style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.03em', color: safeBalance > 0 ? 'var(--success)' : 'var(--text-3)' }}>
+            {safeBalance > 0 ? safeBalance.toFixed(2) : '0.00'}
+          </div>
+          <div style={{ fontSize: '0.65rem', color: 'var(--text-3)', marginTop: 4 }}>
+            Transferable
+          </div>
+        </div>
       </div>
 
-      <div className="section-header">
-        <span className="section-title">Amount to Withdraw</span>
-        <span style={{ fontSize: '0.72rem', color: 'var(--text-3)' }}>
-          PUT: <strong style={{ color: 'var(--text-2)' }}>{putBalance.toFixed(2)}</strong>
-        </span>
+      {/* ── Info box ── */}
+      <div className="info-box info" style={{ marginBottom: 16 }}>
+        Burn X1SAFE_PUT → nhận X1SAFE tự do (tỉ lệ 1:1). Collateral vẫn nằm trong vault.
       </div>
 
-      <div className="amount-input-block">
+      {/* ── Amount input ── */}
+      <div className="amount-input-block" style={{ marginBottom: 14 }}>
         <div className="amount-input-row">
           <input
             type="number"
             className="amount-input-big"
             placeholder="0.00"
             value={amount}
-            onChange={e => setAmount(e.target.value)}
+            min="0"
+            step="any"
+            onChange={e => { setAmount(e.target.value); setError(''); setTxSig(''); setShowConfirm(false) }}
           />
-          <div className="amount-input-asset">PUT</div>
+          <div className="amount-input-asset" style={{ color: 'var(--xnt-color)' }}>
+            🔒 PUT
+          </div>
         </div>
         <div className="amount-input-footer">
           <span className="amount-usd">
             {numAmt > 0 ? `→ ${numAmt.toFixed(4)} X1SAFE (free)` : 'Enter PUT amount'}
           </span>
-          <button className="amount-max-btn" onClick={() => setAmount(putBalance.toFixed(6))}>MAX</button>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button
+              className="amount-max-btn"
+              onClick={() => { setAmount((putBalance / 2).toFixed(6)); setShowConfirm(false) }}
+              disabled={putBalance === 0}
+            >
+              HALF
+            </button>
+            <button
+              className="amount-max-btn"
+              onClick={() => { setAmount(putBalance.toFixed(6)); setShowConfirm(false) }}
+              disabled={putBalance === 0}
+            >
+              MAX
+            </button>
+          </div>
+        </div>
+        <div style={{
+          marginTop: 10,
+          paddingTop: 10,
+          borderTop: '1px solid var(--border-soft)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          fontSize: '0.75rem',
+          color: 'var(--text-3)',
+        }}>
+          <span>PUT Balance</span>
+          <span style={{ color: putBalance > 0 ? 'var(--xnt-color)' : undefined, fontWeight: 600 }}>
+            {putBalance.toFixed(4)} PUT
+          </span>
         </div>
       </div>
 
+      {/* ── Conversion card ── */}
       {numAmt > 0 && (
-        <div className="conversion-card">
+        <div className="conversion-card" style={{ marginBottom: 14 }}>
           <div className="conversion-row">
-            <span className="label">Burn</span>
-            <span className="value">{numAmt.toFixed(4)} X1SAFE_PUT</span>
+            <span className="label">🔥 Burn</span>
+            <span className="value" style={{ color: 'var(--xnt-color)' }}>{numAmt.toFixed(4)} X1SAFE_PUT</span>
+          </div>
+          <div className="conversion-row">
+            <span className="label">Tỉ lệ</span>
+            <span className="value">1:1 cố định</span>
           </div>
           <div className="conversion-divider" />
           <div className="conversion-total">
-            <span className="label">→ You receive</span>
-            <span className="value">{numAmt.toFixed(4)} X1SAFE (free)</span>
+            <span className="label">→ Bạn nhận</span>
+            <span className="value">{numAmt.toFixed(4)} X1SAFE</span>
+          </div>
+          <div style={{ marginTop: 10, fontSize: '0.7rem', color: 'var(--text-3)', display: 'flex', gap: 12 }}>
+            <span>PUT bị hủy vĩnh viễn</span>
+            <span>·</span>
+            <span>X1SAFE có thể chuyển tự do</span>
           </div>
         </div>
       )}
 
-      {error && (
-        <div className="tx-status error" style={{ marginBottom: 12 }}>
-          <span>⚠</span> {error}
+      {/* ── Warnings ── */}
+      {putBalance === 0 && (
+        <div className="info-box warning" style={{ marginBottom: 14 }}>
+          ⚠️ Bạn chưa có X1SAFE_PUT. Hãy deposit tài sản vào vault trước.
+        </div>
+      )}
+      {isInsufficient && (
+        <div className="info-box warning" style={{ marginBottom: 14 }}>
+          ⚠️ Số lượng vượt quá PUT balance ({putBalance.toFixed(4)} PUT)
         </div>
       )}
 
+      {/* ── Error ── */}
+      {error && (
+        <div className="info-box danger" style={{ marginBottom: 14 }}>
+          ❌ {error}
+        </div>
+      )}
+
+      {/* ── Success ── */}
+      {txSig && (
+        <div className="tx-status success" style={{ marginBottom: 14 }}>
+          <span>✅ Withdraw thành công</span>
+          <a
+            href={`${EXPLORER}/tx/${txSig}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ marginLeft: 'auto', fontSize: '0.78rem', color: 'var(--success)', textDecoration: 'none' }}
+          >
+            View on Explorer ↗
+          </a>
+        </div>
+      )}
+
+      {/* ── Confirm step ── */}
+      {showConfirm && numAmt > 0 && !error && (
+        <div style={{
+          padding: '14px 16px',
+          background: 'rgba(245,158,11,0.05)',
+          border: '1px solid rgba(245,158,11,0.2)',
+          borderRadius: 'var(--radius-sm)',
+          fontSize: '0.85rem',
+          color: '#d97706',
+          fontWeight: 500,
+          marginBottom: 10,
+        }}>
+          ⚠️ Xác nhận burn {numAmt.toFixed(4)} X1SAFE_PUT — thao tác không thể hoàn tác
+        </div>
+      )}
+
+      {/* ── Buttons ── */}
       {!showConfirm ? (
         <button
           className="btn btn-primary btn-full btn-lg"
           onClick={() => setShowConfirm(true)}
-          disabled={!amount || numAmt <= 0 || putBalance <= 0}
+          disabled={!canWithdraw}
+          style={{ fontWeight: 700, letterSpacing: '-0.02em' }}
         >
-          Withdraw {numAmt > 0 ? `${numAmt.toFixed(4)} PUT → X1SAFE` : ''}
+          {numAmt > 0 && !isInsufficient
+            ? `Withdraw ${numAmt.toFixed(4)} PUT → ${numAmt.toFixed(4)} X1SAFE`
+            : 'Withdraw PUT'}
         </button>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ padding: '14px 16px', background: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.18)', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', color: 'var(--warning)', fontWeight: 500 }}>
-            Confirm: burn {numAmt.toFixed(4)} X1SAFE_PUT → {numAmt.toFixed(4)} X1SAFE?
-          </div>
-          <button className="btn btn-primary btn-full" onClick={handleWithdraw} disabled={loading}>
-            {loading ? <><span className="loading" style={{ borderTopColor: '#000' }} /> Processing…</> : '✓ Confirm'}
+          <button
+            className="btn btn-primary btn-full btn-lg"
+            onClick={handleWithdraw}
+            disabled={loading}
+            style={{ fontWeight: 700 }}
+          >
+            {loading ? (
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>⟳</span>
+                Processing…
+              </span>
+            ) : '✓ Xác nhận Withdraw'}
           </button>
-          <button className="btn btn-secondary btn-full" onClick={() => setShowConfirm(false)} disabled={loading}>Cancel</button>
+          <button
+            className="btn btn-secondary btn-full"
+            onClick={() => setShowConfirm(false)}
+            disabled={loading}
+          >
+            Hủy
+          </button>
         </div>
       )}
 
-      {txSig && (
-        <div className="tx-status success" style={{ marginTop: 12 }}>
-          <span>✓</span>
-          <span>
-            Success!{' '}
-            <a href={`${EXPLORER}/tx/${txSig}`} target="_blank" rel="noopener" style={{ color: 'var(--success)', fontWeight: 700 }}>View tx ↗</a>
-          </span>
-        </div>
-      )}
-
-      <div className="program-footer" style={{ marginTop: 16 }}>
-        <span>{IS_TESTNET ? '🔶 Testnet' : '🟢 Mainnet'}</span>
-        <span>PUT → FREE (1:1)</span>
+      <div style={{ marginTop: 12, textAlign: 'center', fontSize: '0.7rem', color: 'var(--text-3)' }}>
+        {IS_TESTNET ? '🔶 Testnet' : '🟢 Mainnet'} · PUT → X1SAFE tỉ lệ 1:1 · Collateral giữ nguyên trong vault
       </div>
+
     </div>
   )
 }
