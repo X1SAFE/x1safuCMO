@@ -9,6 +9,15 @@ const _env = (import.meta as any).env || {}
 export const PROGRAM_ID = new PublicKey(
   _env.VITE_PROGRAM_ID || '3YqHMLwVVChoSAaN6SjVeKLwKNFN3WQMJ1tFGC2N7Upw'
 )
+
+// ── Verified X1 Testnet Mint Addresses ─────────────────────────────────────
+export const USDC_X_MINT = new PublicKey('6QNPqoF6GGhCFjTTQGxkpJkrH5ueS85b5RpX3GXdUSVw') // USDC.X 6 decimals
+export const XNT_MINT    = new PublicKey('CDREeqfWSxQvPa9ofxVrHFP5VZeF2xSc2EtAdXmNumuW') // XNT 9 decimals
+export const SUPPORTED_ASSETS = [
+  { label: 'USDC.X', mint: USDC_X_MINT, decimals: 6, isFixed: true,  priceUsd: 1.00 },
+  { label: 'XNT',    mint: XNT_MINT,    decimals: 9, isFixed: false, priceUsd: 0.20 },
+]
+
 export const RPC_URL    = _env.VITE_RPC_URL  || 'https://rpc.testnet.x1.xyz'
 export const IS_TESTNET = (_env.VITE_NETWORK || 'testnet') === 'testnet'
 export const EXPLORER   = IS_TESTNET
