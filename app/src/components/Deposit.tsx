@@ -21,9 +21,9 @@ function disc(name: string): Buffer {
   return Buffer.from(sha256(new TextEncoder().encode('global:' + name))).subarray(0, 8)
 }
 
-const ASSET_CLASSES: Record<string, string> = { USDCX: 'usdcx', XNT: 'xnt' }
-const ASSET_SHORT:   Record<string, string> = { USDCX: '$', XNT: 'X' }
-const ASSET_NAMES:   Record<string, string> = { USDCX: 'USD Coin (X1)', XNT: 'XNT Token' }
+const ASSET_CLASSES: Record<string, string> = { USDCX: 'usdcx', XNT: 'xnt', XEN: 'xen' }
+const ASSET_SHORT:   Record<string, string> = { USDCX: '$', XNT: 'X', XEN: 'E' }
+const ASSET_NAMES:   Record<string, string> = { USDCX: 'USD Coin (X1)', XNT: 'XNT Token', XEN: 'XEN Token' }
 
 export function Deposit() {
   const { connection } = useConnection()

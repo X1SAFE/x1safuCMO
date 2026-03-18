@@ -38,6 +38,7 @@ export const MINTS = {
 export const ASSETS = [
   { key: 'USDCX', label: 'USDC.X', icon: '💵', mint: MINTS.USDCX, decimals: 6, price: 1.0 },
   { key: 'XNT',   label: 'XNT',    icon: '🪙', mint: MINTS.XNT,   decimals: 9, price: 0.0 },
+  { key: 'XEN',   label: 'XEN',    icon: '⚡', mint: MINTS.XEN,   decimals: 9, price: 0.0 },
 
 ]
 
