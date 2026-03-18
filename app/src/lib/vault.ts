@@ -1,6 +1,6 @@
 import { Connection, PublicKey } from '@solana/web3.js'
 import { AnchorProvider, Program, BN } from '@coral-xyz/anchor'
-import { getAssociatedTokenAddressSync } from '@solana/spl-token'
+import { getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from '@solana/spl-token'
 
 // ── Config ────────────────────────────────────────────────────────────────────
 export const PROGRAM_ID = new PublicKey('3YqHMLwVVChoSAaN6SjVeKLwKNFN3WQMJ1tFGC2N7Upw')
@@ -440,10 +440,18 @@ export async function getTokenBalance(
   mint: PublicKey
 ): Promise<number> {
   try {
-    const ata  = getAssociatedTokenAddressSync(mint, owner)
+    // Try canonical ATA first (explicit TOKEN_PROGRAM_ID)
+    const ata  = getAssociatedTokenAddressSync(mint, owner, false, TOKEN_PROGRAM_ID)
     const info = await connection.getTokenAccountBalance(ata)
     return info.value.uiAmount ?? 0
-  } catch { return 0 }
+  } catch {
+    // Fallback: scan all token accounts for this mint
+    try {
+      const accounts = await connection.getParsedTokenAccountsByOwner(owner, { mint }, 'confirmed')
+      if (!accounts.value.length) return 0
+      return accounts.value.reduce((sum, a) => sum + (a.account.data.parsed?.info?.tokenAmount?.uiAmount ?? 0), 0)
+    } catch { return 0 }
+  }
 }
 
 // ── Oracle: xDEX pool list → real-time prices ─────────────────────────────────
