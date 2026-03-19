@@ -32,7 +32,7 @@ export function Exit() {
       fetchVaultState(connection),
     ])
     setSafeBalance(bal)
-    if (state) setTotalFree(state.totalFreeSupply / 1e6)
+    if (state) setTotalFree(state.totalX1safePutSupply / 1e6)
   }
 
   useEffect(() => { load() }, [wallet.publicKey, connection, txSig])

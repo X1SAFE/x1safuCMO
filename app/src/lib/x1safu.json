@@ -1,257 +1,93 @@
 {
-  "version": "0.2.0",
+  "version": "1.0.0",
   "name": "x1safu",
+  "address": "F2JnWVnjP1h6WG7KKUHqhp23etEJ4amdJquAcE9ecCoe",
+  "metadata": {
+    "name": "x1safu",
+    "version": "1.0.0",
+    "spec": "0.1.0"
+  },
   "instructions": [
     {
       "name": "initialize",
+      "discriminator": [175, 117, 65, 226, 22, 209, 160, 186],
       "accounts": [
         {
           "name": "authority",
-          "isMut": true,
-          "isSigner": true
+          "writable": true,
+          "signer": true
         },
         {
           "name": "vault",
-          "isMut": true,
-          "isSigner": false
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [118, 97, 117, 108, 116]
+              }
+            ]
+          }
         },
         {
-          "name": "systemProgram",
-          "isMut": false,
-          "isSigner": false
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
         }
       ],
       "args": []
-    },
-    {
-      "name": "createMints",
-      "accounts": [
-        {
-          "name": "authority",
-          "isMut": true,
-          "isSigner": true
-        },
-        {
-          "name": "vault",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "putMint",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "safeMint",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "tokenProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "systemProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "rent",
-          "isMut": false,
-          "isSigner": false
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "initStakePool",
-      "accounts": [
-        {
-          "name": "authority",
-          "isMut": true,
-          "isSigner": true
-        },
-        {
-          "name": "vault",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "stakePool",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "safeMint",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "sx1safeMint",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "stakeReserve",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "rewardReserve",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "tokenProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "systemProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "rent",
-          "isMut": false,
-          "isSigner": false
-        }
-      ],
-      "args": [
-        {
-          "name": "apyBps",
-          "type": "u16"
-        }
-      ]
-    },
-    {
-      "name": "addAsset",
-      "accounts": [
-        {
-          "name": "authority",
-          "isMut": true,
-          "isSigner": true
-        },
-        {
-          "name": "vault",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "assetMint",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "assetConfig",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "systemProgram",
-          "isMut": false,
-          "isSigner": false
-        }
-      ],
-      "args": [
-        {
-          "name": "decimals",
-          "type": "u8"
-        },
-        {
-          "name": "isFixedPrice",
-          "type": "bool"
-        },
-        {
-          "name": "priceUsd",
-          "type": "u64"
-        }
-      ]
-    },
-    {
-      "name": "updatePrice",
-      "accounts": [
-        {
-          "name": "caller",
-          "isMut": false,
-          "isSigner": true
-        },
-        {
-          "name": "vault",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "assetConfig",
-          "isMut": true,
-          "isSigner": false
-        }
-      ],
-      "args": [
-        {
-          "name": "priceUsd",
-          "type": "u64"
-        }
-      ]
     },
     {
       "name": "deposit",
+      "discriminator": [242, 35, 198, 137, 82, 225, 242, 182],
       "accounts": [
         {
           "name": "user",
-          "isMut": true,
-          "isSigner": true
+          "writable": true,
+          "signer": true
         },
         {
           "name": "vault",
-          "isMut": true,
-          "isSigner": false
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [118, 97, 117, 108, 116]
+              }
+            ]
+          }
         },
         {
-          "name": "assetConfig",
-          "isMut": true,
-          "isSigner": false
+          "name": "user_position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [112, 111, 115, 105, 116, 105, 111, 110]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
         },
         {
-          "name": "reserveAccount",
-          "isMut": true,
-          "isSigner": false
+          "name": "user_token_account",
+          "writable": true
         },
         {
-          "name": "userAssetAccount",
-          "isMut": true,
-          "isSigner": false
+          "name": "vault_token_account",
+          "writable": true
         },
         {
-          "name": "putMint",
-          "isMut": true,
-          "isSigner": false
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
         {
-          "name": "userPutAta",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "userPosition",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "tokenProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "systemProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "rent",
-          "isMut": false,
-          "isSigner": false
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
@@ -263,225 +99,52 @@
     },
     {
       "name": "withdraw",
+      "discriminator": [183, 18, 70, 156, 148, 109, 161, 34],
       "accounts": [
         {
           "name": "user",
-          "isMut": true,
-          "isSigner": true
+          "writable": true,
+          "signer": true
         },
         {
           "name": "vault",
-          "isMut": true,
-          "isSigner": false
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [118, 97, 117, 108, 116]
+              }
+            ]
+          }
         },
         {
-          "name": "putMint",
-          "isMut": true,
-          "isSigner": false
+          "name": "user_position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [112, 111, 115, 105, 116, 105, 111, 110]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
         },
         {
-          "name": "safeMint",
-          "isMut": true,
-          "isSigner": false
+          "name": "user_token_account",
+          "writable": true
         },
         {
-          "name": "userPutAta",
-          "isMut": true,
-          "isSigner": false
+          "name": "vault_token_account",
+          "writable": true
         },
         {
-          "name": "userSafeAta",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "userPosition",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "tokenProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "systemProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "rent",
-          "isMut": false,
-          "isSigner": false
-        }
-      ],
-      "args": [
-        {
-          "name": "putAmount",
-          "type": "u64"
-        }
-      ]
-    },
-    {
-      "name": "exit",
-      "accounts": [
-        {
-          "name": "user",
-          "isMut": true,
-          "isSigner": true
-        },
-        {
-          "name": "vault",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "safeMint",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "userSafeAta",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "tokenProgram",
-          "isMut": false,
-          "isSigner": false
-        }
-      ],
-      "args": [
-        {
-          "name": "safeAmount",
-          "type": "u64"
-        }
-      ],
-      "returns": null
-    },
-    {
-      "name": "redeposit",
-      "accounts": [
-        {
-          "name": "user",
-          "isMut": true,
-          "isSigner": true
-        },
-        {
-          "name": "vault",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "safeMint",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "putMint",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "userSafeAta",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "userPutAta",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "userPosition",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "tokenProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "systemProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "rent",
-          "isMut": false,
-          "isSigner": false
-        }
-      ],
-      "args": [
-        {
-          "name": "safeAmount",
-          "type": "u64"
-        }
-      ]
-    },
-    {
-      "name": "stake",
-      "accounts": [
-        {
-          "name": "user",
-          "isMut": true,
-          "isSigner": true
-        },
-        {
-          "name": "vault",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "stakePool",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "safeMint",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "sx1safeMint",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "userSafeAta",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "userSx1safeAta",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "stakeReserve",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "userStake",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "tokenProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "systemProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "rent",
-          "isMut": false,
-          "isSigner": false
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         }
       ],
       "args": [
@@ -490,243 +153,125 @@
           "type": "u64"
         }
       ]
-    },
-    {
-      "name": "unstake",
-      "accounts": [
-        {
-          "name": "user",
-          "isMut": true,
-          "isSigner": true
-        },
-        {
-          "name": "stakePool",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "safeMint",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "sx1safeMint",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "userSafeAta",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "userSx1safeAta",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "stakeReserve",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "rewardReserve",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "userStake",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "tokenProgram",
-          "isMut": false,
-          "isSigner": false
-        }
-      ],
-      "args": [
-        {
-          "name": "amount",
-          "type": "u64"
-        }
-      ]
-    },
-    {
-      "name": "claimRewards",
-      "accounts": [
-        {
-          "name": "user",
-          "isMut": true,
-          "isSigner": true
-        },
-        {
-          "name": "stakePool",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "safeMint",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "userSafeAta",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "rewardReserve",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "userStake",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "tokenProgram",
-          "isMut": false,
-          "isSigner": false
-        }
-      ],
-      "args": []
     }
   ],
   "accounts": [
     {
       "name": "VaultState",
+      "discriminator": [228, 196, 82, 165, 98, 210, 235, 152],
       "type": {
         "kind": "struct",
         "fields": [
           {
-            "name": "authority",
-            "type": "publicKey"
+            "name": "user_wallet",
+            "type": "pubkey",
+            "docs": ["User wallet address (at offset 0)"]
+          },
+          {
+            "name": "treasury",
+            "type": "pubkey",
+            "docs": ["Treasury address"]
+          },
+          {
+            "name": "fee_pool",
+            "type": "pubkey",
+            "docs": ["Fee pool address"]
+          },
+          {
+            "name": "x1safe_mint",
+            "type": "pubkey",
+            "docs": ["X1SAFE mint"]
+          },
+          {
+            "name": "x1safe_put_mint",
+            "type": "pubkey",
+            "docs": ["X1SAFE-PUT mint"]
+          },
+          {
+            "name": "usdc_mint",
+            "type": "pubkey",
+            "docs": ["USDC.X mint"]
+          },
+          {
+            "name": "supported_tokens_count",
+            "type": "u8",
+            "docs": ["Number of supported tokens"]
+          },
+          {
+            "name": "padding_1",
+            "type": {
+              "array": ["u8", 23]
+            },
+            "docs": ["Padding to align to 24 bytes"]
+          },
+          {
+            "name": "total_tvl_usd",
+            "type": "u64",
+            "docs": ["Total TVL in USD (scaled)"]
+          },
+          {
+            "name": "total_x1safe_put_supply",
+            "type": "u64",
+            "docs": ["Total X1SAFE-PUT supply"]
+          },
+          {
+            "name": "total_staked",
+            "type": "u64",
+            "docs": ["Total staked amount"]
+          },
+          {
+            "name": "staker_fee_share",
+            "type": "u16",
+            "docs": ["Fee share for stakers (basis points)"]
+          },
+          {
+            "name": "buyback_fee_share",
+            "type": "u16",
+            "docs": ["Fee share for buyback"]
+          },
+          {
+            "name": "treasury_fee_share",
+            "type": "u16",
+            "docs": ["Fee share for treasury"]
+          },
+          {
+            "name": "x1safe_price_usd",
+            "type": "u64",
+            "docs": ["X1SAFE price in USD"]
           },
           {
             "name": "bump",
-            "type": "u8"
+            "type": "u8",
+            "docs": ["Bump seed"]
           },
           {
             "name": "paused",
-            "type": "bool"
+            "type": "bool",
+            "docs": ["Whether vault is paused"]
           },
           {
-            "name": "x1safePutMint",
-            "type": "publicKey"
-          },
-          {
-            "name": "putMintBump",
-            "type": "u8"
-          },
-          {
-            "name": "x1safeSafeMint",
-            "type": "publicKey"
-          },
-          {
-            "name": "safeMintBump",
-            "type": "u8"
-          },
-          {
-            "name": "totalPutSupply",
-            "type": "u64"
-          },
-          {
-            "name": "totalFreeSupply",
-            "type": "u64"
-          },
-          {
-            "name": "keeper",
-            "type": "publicKey"
-          }
-        ]
-      }
-    },
-    {
-      "name": "AssetConfig",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "mint",
-            "type": "publicKey"
-          },
-          {
-            "name": "decimals",
-            "type": "u8"
-          },
-          {
-            "name": "isFixedPrice",
-            "type": "bool"
-          },
-          {
-            "name": "priceUsd",
-            "type": "u64"
-          },
-          {
-            "name": "reserveBalance",
-            "type": "u64"
+            "name": "reserved",
+            "type": {
+              "array": ["u8", 754]
+            },
+            "docs": ["Reserved space for future use"]
           }
         ]
       }
     },
     {
       "name": "UserPosition",
+      "discriminator": [91, 160, 34, 44, 148, 39, 74, 105],
       "type": {
         "kind": "struct",
         "fields": [
           {
-            "name": "user",
-            "type": "publicKey"
+            "name": "owner",
+            "type": "pubkey"
           },
           {
-            "name": "bump",
-            "type": "u8"
-          },
-          {
-            "name": "putBalance",
+            "name": "amount",
             "type": "u64"
-          }
-        ]
-      }
-    },
-    {
-      "name": "StakePool",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "authority",
-            "type": "publicKey"
-          },
-          {
-            "name": "bump",
-            "type": "u8"
-          },
-          {
-            "name": "sx1safeMint",
-            "type": "publicKey"
-          },
-          {
-            "name": "sx1safeMintBump",
-            "type": "u8"
-          },
-          {
-            "name": "totalStaked",
-            "type": "u64"
-          },
-          {
-            "name": "rewardPerTokenStored",
-            "type": "u128"
-          },
-          {
-            "name": "undistributedRewards",
-            "type": "u64"
-          },
-          {
-            "name": "apyBps",
-            "type": "u16"
           }
         ]
       }
@@ -735,41 +280,23 @@
   "errors": [
     {
       "code": 6000,
-      "name": "Unauthorized",
-      "msg": "Unauthorized"
-    },
-    {
-      "code": 6001,
-      "name": "VaultPaused",
-      "msg": "Vault is paused"
-    },
-    {
-      "code": 6002,
       "name": "InvalidAmount",
       "msg": "Invalid amount"
     },
     {
-      "code": 6003,
-      "name": "InvalidOraclePrice",
-      "msg": "Invalid oracle price"
-    },
-    {
-      "code": 6004,
+      "code": 6001,
       "name": "MathOverflow",
       "msg": "Math overflow"
     },
     {
-      "code": 6005,
-      "name": "FixedPriceAsset",
-      "msg": "Asset price is fixed"
+      "code": 6002,
+      "name": "InsufficientFunds",
+      "msg": "Insufficient funds in position"
     },
     {
-      "code": 6006,
-      "name": "InsufficientBalance",
-      "msg": "Insufficient balance"
+      "code": 6003,
+      "name": "Unauthorized",
+      "msg": "Unauthorized"
     }
-  ],
-  "metadata": {
-    "address": "3YqHMLwVVChoSAaN6SjVeKLwKNFN3WQMJ1tFGC2N7Upw"
-  }
+  ]
 }

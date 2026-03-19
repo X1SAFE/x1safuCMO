@@ -9,8 +9,8 @@ export const X1_TOKEN_2022_PROGRAM_ID = new PublicKey('TokenzQdBNbLqP5VEhdkASEGJ
 export const X1_ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL')
 
 // ── Config ────────────────────────────────────────────────────────────────────
-// X1SAFE Vault Program
-export const PROGRAM_ID = new PublicKey('9qu7VvWkuCW5xwpdxroQjsjAouKBV9xqrNccFNwNF13')
+// X1SAFE Vault Program (x1safu)
+export const PROGRAM_ID = new PublicKey('F2JnWVnjP1h6WG7KKUHqhp23etEJ4amdJquAcE9ecCoe')
 // X1SAFE PUT Staking Program
 export const STAKING_PROGRAM_ID = new PublicKey('5zvbhhakw9Fh5socoTdm3jqn5LdrZzSWb2KaCmCW8GHe')
 
@@ -106,83 +106,32 @@ export const getReserveAccount = (mint: PublicKey): PublicKey =>
   getAssociatedTokenAddressSync(mint, getVaultPDA(), true)
 
 // ── IDL ───────────────────────────────────────────────────────────────────────
+// IDL matching on-chain program F2JnWVnjP1h6WG7KKUHqhp23etEJ4amdJquAcE9ecCoe
+// VaultState size: 978 bytes
 export const IDL: any = {
-  version: '0.2.0',
+  version: '1.0.0',
   name: 'x1safu',
+  address: 'F2JnWVnjP1h6WG7KKUHqhp23etEJ4amdJquAcE9ecCoe',
   instructions: [
     {
       name: 'initialize',
+      discriminator: [175, 117, 65, 226, 22, 209, 160, 186],
       accounts: [
         { name: 'authority',     isMut: true,  isSigner: true  },
         { name: 'vault',         isMut: true,  isSigner: false },
         { name: 'systemProgram', isMut: false, isSigner: false },
       ],
       args: [],
-    },
-    {
-      name: 'createMints',
-      accounts: [
-        { name: 'authority',     isMut: true,  isSigner: true  },
-        { name: 'vault',         isMut: true,  isSigner: false },
-        { name: 'putMint',       isMut: true,  isSigner: false },
-        { name: 'safeMint',      isMut: true,  isSigner: false },
-        { name: 'tokenProgram',  isMut: false, isSigner: false },
-        { name: 'systemProgram', isMut: false, isSigner: false },
-        { name: 'rent',          isMut: false, isSigner: false },
-      ],
-      args: [],
-    },
-    {
-      name: 'initStakePool',
-      accounts: [
-        { name: 'authority',     isMut: true,  isSigner: true  },
-        { name: 'vault',         isMut: false, isSigner: false },
-        { name: 'stakePool',     isMut: true,  isSigner: false },
-        { name: 'safeMint',      isMut: false, isSigner: false },
-        { name: 'sx1safeMint',   isMut: true,  isSigner: false },
-        { name: 'stakeReserve',  isMut: true,  isSigner: false },
-        { name: 'rewardReserve', isMut: true,  isSigner: false },
-        { name: 'tokenProgram',  isMut: false, isSigner: false },
-        { name: 'systemProgram', isMut: false, isSigner: false },
-        { name: 'rent',          isMut: false, isSigner: false },
-      ],
-      args: [{ name: 'apyBps', type: 'u16' }],
-    },
-    {
-      name: 'addAsset',
-      accounts: [
-        { name: 'authority',    isMut: true,  isSigner: true  },
-        { name: 'vault',        isMut: false, isSigner: false },
-        { name: 'assetMint',    isMut: false, isSigner: false },
-        { name: 'assetConfig',  isMut: true,  isSigner: false },
-        { name: 'systemProgram',isMut: false, isSigner: false },
-      ],
-      args: [
-        { name: 'decimals',     type: 'u8'   },
-        { name: 'isFixedPrice', type: 'bool' },
-        { name: 'priceUsd',     type: 'u64'  },
-      ],
-    },
-    {
-      name: 'updatePrice',
-      accounts: [
-        { name: 'caller',      isMut: false, isSigner: true  },
-        { name: 'vault',       isMut: false, isSigner: false },
-        { name: 'assetConfig', isMut: true,  isSigner: false },
-      ],
-      args: [{ name: 'priceUsd', type: 'u64' }],
     },
     {
       name: 'deposit',
+      discriminator: [242, 35, 198, 137, 82, 225, 242, 182],
       accounts: [
         { name: 'user',              isMut: true,  isSigner: true  },
         { name: 'vault',             isMut: true,  isSigner: false },
-        { name: 'assetConfig',       isMut: true,  isSigner: false },
-        { name: 'reserveAccount',    isMut: true,  isSigner: false },
-        { name: 'userAssetAccount',  isMut: true,  isSigner: false },
-        { name: 'putMint',           isMut: true,  isSigner: false },
-        { name: 'userPutAta',        isMut: true,  isSigner: false },
         { name: 'userPosition',      isMut: true,  isSigner: false },
+        { name: 'userTokenAccount',  isMut: true,  isSigner: false },
+        { name: 'vaultTokenAccount', isMut: true,  isSigner: false },
         { name: 'tokenProgram',      isMut: false, isSigner: false },
         { name: 'systemProgram',     isMut: false, isSigner: false },
       ],
@@ -190,170 +139,49 @@ export const IDL: any = {
     },
     {
       name: 'withdraw',
+      discriminator: [183, 18, 70, 156, 148, 109, 161, 34],
       accounts: [
         { name: 'user',             isMut: true,  isSigner: true  },
         { name: 'vault',            isMut: true,  isSigner: false },
-        { name: 'putMint',          isMut: true,  isSigner: false },
-        { name: 'safeMint',         isMut: true,  isSigner: false },
-        { name: 'userPutAccount',   isMut: true,  isSigner: false },
-        { name: 'userSafeAccount',  isMut: true,  isSigner: false },
         { name: 'userPosition',     isMut: true,  isSigner: false },
+        { name: 'userTokenAccount', isMut: true,  isSigner: false },
+        { name: 'vaultTokenAccount',isMut: true,  isSigner: false },
         { name: 'tokenProgram',     isMut: false, isSigner: false },
-        { name: 'systemProgram',    isMut: false, isSigner: false },
-      ],
-      args: [{ name: 'putAmount', type: 'u64' }],
-    },
-    {
-      name: 'exit',
-      accounts: [
-        { name: 'user',            isMut: true,  isSigner: true  },
-        { name: 'vault',           isMut: true,  isSigner: false },
-        { name: 'safeMint',        isMut: true,  isSigner: false },
-        { name: 'userSafeAccount', isMut: true,  isSigner: false },
-        { name: 'tokenProgram',    isMut: false, isSigner: false },
-      ],
-      args: [{ name: 'safeBurnAmount', type: 'u64' }],
-    },
-    {
-      name: 'redeposit',
-      accounts: [
-        { name: 'user',            isMut: true,  isSigner: true  },
-        { name: 'vault',           isMut: true,  isSigner: false },
-        { name: 'safeMint',        isMut: true,  isSigner: false },
-        { name: 'putMint',         isMut: true,  isSigner: false },
-        { name: 'userSafeAccount', isMut: true,  isSigner: false },
-        { name: 'userPutAta',      isMut: true,  isSigner: false },
-        { name: 'tokenProgram',    isMut: false, isSigner: false },
-      ],
-      args: [{ name: 'safeAmount', type: 'u64' }],
-    },
-    {
-      name: 'stake',
-      accounts: [
-        { name: 'user',          isMut: true,  isSigner: true  },
-        { name: 'stakePool',     isMut: true,  isSigner: false },
-        { name: 'userStake',     isMut: true,  isSigner: false },
-        { name: 'sx1safeMint',   isMut: true,  isSigner: false },
-        { name: 'userX1safe',    isMut: true,  isSigner: false },
-        { name: 'userSx1safe',   isMut: true,  isSigner: false },
-        { name: 'stakeReserve',  isMut: true,  isSigner: false },
-        { name: 'tokenProgram',  isMut: false, isSigner: false },
-        { name: 'systemProgram', isMut: false, isSigner: false },
       ],
       args: [{ name: 'amount', type: 'u64' }],
-    },
-    {
-      name: 'unstake',
-      accounts: [
-        { name: 'user',          isMut: true,  isSigner: true  },
-        { name: 'stakePool',     isMut: true,  isSigner: false },
-        { name: 'userStake',     isMut: true,  isSigner: false },
-        { name: 'sx1safeMint',   isMut: true,  isSigner: false },
-        { name: 'userX1safe',    isMut: true,  isSigner: false },
-        { name: 'userSx1safe',   isMut: true,  isSigner: false },
-        { name: 'stakeReserve',  isMut: true,  isSigner: false },
-        { name: 'rewardReserve', isMut: true,  isSigner: false },
-        { name: 'tokenProgram',  isMut: false, isSigner: false },
-      ],
-      args: [{ name: 'amount', type: 'u64' }],
-    },
-    {
-      name: 'claimRewards',
-      accounts: [
-        { name: 'user',          isMut: true,  isSigner: true  },
-        { name: 'stakePool',     isMut: true,  isSigner: false },
-        { name: 'userStake',     isMut: true,  isSigner: false },
-        { name: 'userX1safe',    isMut: true,  isSigner: false },
-        { name: 'rewardReserve', isMut: true,  isSigner: false },
-        { name: 'tokenProgram',  isMut: false, isSigner: false },
-      ],
-      args: [],
-    },
-    {
-      name: 'depositRewards',
-      accounts: [
-        { name: 'caller',        isMut: false, isSigner: true  },
-        { name: 'vault',         isMut: false, isSigner: false },
-        { name: 'stakePool',     isMut: true,  isSigner: false },
-        { name: 'source',        isMut: true,  isSigner: false },
-        { name: 'rewardReserve', isMut: true,  isSigner: false },
-        { name: 'tokenProgram',  isMut: false, isSigner: false },
-      ],
-      args: [{ name: 'amount', type: 'u64' }],
-    },
-    {
-      name: 'pauseVault',
-      accounts: [
-        { name: 'authority', isMut: false, isSigner: true  },
-        { name: 'vault',     isMut: true,  isSigner: false },
-      ],
-      args: [],
-    },
-    {
-      name: 'unpauseVault',
-      accounts: [
-        { name: 'authority', isMut: false, isSigner: true  },
-        { name: 'vault',     isMut: true,  isSigner: false },
-      ],
-      args: [],
     },
   ],
   accounts: [
     {
       name: 'VaultState',
+      discriminator: [228, 196, 82, 165, 98, 210, 235, 152],
       type: { kind: 'struct', fields: [
-        { name: 'authority',        type: 'publicKey' },
-        { name: 'bump',             type: 'u8'        },
-        { name: 'paused',           type: 'bool'      },
-        { name: 'x1safePutMint',    type: 'publicKey' },
-        { name: 'putMintBump',      type: 'u8'        },
-        { name: 'x1safeSafeMint',   type: 'publicKey' },
-        { name: 'safeMintBump',     type: 'u8'        },
-        { name: 'totalPutSupply',   type: 'u64'       },
-        { name: 'totalFreeSupply',  type: 'u64'       },
-        { name: 'keeper',           type: 'publicKey' },
-      ]},
-    },
-    {
-      name: 'AssetConfig',
-      type: { kind: 'struct', fields: [
-        { name: 'mint',           type: 'publicKey' },
-        { name: 'decimals',       type: 'u8'        },
-        { name: 'isFixedPrice',   type: 'bool'      },
-        { name: 'priceUsd',       type: 'u64'       },
-        { name: 'reserveBalance', type: 'u64'       },
+        { name: 'userWallet',            type: 'publicKey' },
+        { name: 'treasury',              type: 'publicKey' },
+        { name: 'feePool',               type: 'publicKey' },
+        { name: 'x1safeMint',            type: 'publicKey' },
+        { name: 'x1safePutMint',         type: 'publicKey' },
+        { name: 'usdcMint',              type: 'publicKey' },
+        { name: 'supportedTokensCount',  type: 'u8'        },
+        { name: 'padding1',              type: { array: ['u8', 23] } },
+        { name: 'totalTvlUsd',           type: 'u64'       },
+        { name: 'totalX1safePutSupply',  type: 'u64'       },
+        { name: 'totalStaked',           type: 'u64'       },
+        { name: 'stakerFeeShare',        type: 'u16'       },
+        { name: 'buybackFeeShare',       type: 'u16'       },
+        { name: 'treasuryFeeShare',      type: 'u16'       },
+        { name: 'x1safePriceUsd',        type: 'u64'       },
+        { name: 'bump',                  type: 'u8'        },
+        { name: 'paused',                type: 'bool'      },
+        { name: 'reserved',              type: { array: ['u8', 754] } },
       ]},
     },
     {
       name: 'UserPosition',
+      discriminator: [91, 160, 34, 44, 148, 39, 74, 105],
       type: { kind: 'struct', fields: [
-        { name: 'user',       type: 'publicKey' },
-        { name: 'bump',       type: 'u8'        },
-        { name: 'putBalance', type: 'u64'        },
-      ]},
-    },
-    {
-      name: 'StakePool',
-      type: { kind: 'struct', fields: [
-        { name: 'authority',              type: 'publicKey' },
-        { name: 'bump',                   type: 'u8'        },
-        { name: 'sx1safeMint',            type: 'publicKey' },
-        { name: 'sx1safeMintBump',        type: 'u8'        },
-        { name: 'totalStaked',            type: 'u64'       },
-        { name: 'rewardPerTokenStored',   type: 'u128'      },
-        { name: 'undistributedRewards',   type: 'u64'       },
-        { name: 'apyBps',                 type: 'u16'       },
-      ]},
-    },
-    {
-      name: 'UserStake',
-      type: { kind: 'struct', fields: [
-        { name: 'user',                type: 'publicKey' },
-        { name: 'bump',                type: 'u8'        },
-        { name: 'stakedAmount',        type: 'u64'       },
-        { name: 'rewardPerTokenPaid',  type: 'u128'      },
-        { name: 'rewardsPending',      type: 'u64'       },
-        { name: 'rewardsClaimed',      type: 'u64'       },
+        { name: 'owner',  type: 'publicKey' },
+        { name: 'amount', type: 'u64'       },
       ]},
     },
   ],
@@ -362,9 +190,6 @@ export const IDL: any = {
     { code: 6001, name: 'MathOverflow',      msg: 'Math overflow'          },
     { code: 6002, name: 'InsufficientFunds', msg: 'Insufficient funds'     },
     { code: 6003, name: 'Unauthorized',      msg: 'Unauthorized'           },
-    { code: 6004, name: 'VaultPaused',       msg: 'Vault is paused'        },
-    { code: 6005, name: 'InvalidOraclePrice',msg: 'Invalid oracle price'   },
-    { code: 6006, name: 'FixedPriceAsset',   msg: 'Asset uses fixed price' },
   ],
 }
 
@@ -396,23 +221,50 @@ export function getStakingProgram(provider: AnchorProvider) {
 }
 
 // ── Vault state ───────────────────────────────────────────────────────────────
+// Parse VaultState (978 bytes) matching on-chain program
 export async function fetchVaultState(connection: Connection) {
   try {
     const info = await connection.getAccountInfo(getVaultPDA())
     if (!info) return null
-    const d = info.data; let o = 8
-    const authority       = new PublicKey(d.slice(o, o+32)); o += 32
+    const d = info.data; let o = 8  // Skip discriminator
+    
+    // 6 pubkeys (32 bytes each)
+    const userWallet      = new PublicKey(d.slice(o, o+32)); o += 32
+    const treasury        = new PublicKey(d.slice(o, o+32)); o += 32
+    const feePool         = new PublicKey(d.slice(o, o+32)); o += 32
+    const x1safeMint      = new PublicKey(d.slice(o, o+32)); o += 32
+    const x1safePutMint   = new PublicKey(d.slice(o, o+32)); o += 32
+    const usdcMint        = new PublicKey(d.slice(o, o+32)); o += 32
+    
+    // u8 + padding[23]
+    const supportedTokensCount = d[o++]
+    o += 23  // Skip padding
+    
+    // u64 values
+    const totalTvlUsd         = Number(d.readBigUInt64LE(o)); o += 8
+    const totalX1safePutSupply = Number(d.readBigUInt64LE(o)); o += 8
+    const totalStaked         = Number(d.readBigUInt64LE(o)); o += 8
+    
+    // u16 values
+    const stakerFeeShare  = d.readUInt16LE(o); o += 2
+    const buybackFeeShare = d.readUInt16LE(o); o += 2
+    const treasuryFeeShare = d.readUInt16LE(o); o += 2
+    
+    // u64 + u8 + bool
+    const x1safePriceUsd  = Number(d.readBigUInt64LE(o)); o += 8
     const bump            = d[o++]
     const paused          = !!d[o++]
-    const x1safePutMint   = new PublicKey(d.slice(o, o+32)); o += 32
-    const putMintBump     = d[o++]
-    const x1safeSafeMint  = new PublicKey(d.slice(o, o+32)); o += 32
-    const safeMintBump    = d[o++]
-    const totalPutSupply  = Number(d.readBigUInt64LE(o)); o += 8
-    const totalFreeSupply = Number(d.readBigUInt64LE(o)); o += 8
-    const keeper          = new PublicKey(d.slice(o, o+32))
-    return { authority, bump, paused, x1safePutMint, putMintBump, x1safeSafeMint, safeMintBump, totalPutSupply, totalFreeSupply, keeper }
-  } catch { return null }
+    
+    return { 
+      userWallet, treasury, feePool, x1safeMint, x1safePutMint, usdcMint,
+      supportedTokensCount, totalTvlUsd, totalX1safePutSupply, totalStaked,
+      stakerFeeShare, buybackFeeShare, treasuryFeeShare, x1safePriceUsd,
+      bump, paused 
+    }
+  } catch (e) { 
+    console.error('Error fetching vault state:', e)
+    return null 
+  }
 }
 
 // ── Asset config ──────────────────────────────────────────────────────────────
@@ -431,15 +283,15 @@ export async function fetchAssetConfig(connection: Connection, mint: PublicKey) 
 }
 
 // ── User position ─────────────────────────────────────────────────────────────
+// Parse UserPosition (owner: pubkey, amount: u64)
 export async function fetchUserPosition(connection: Connection, user: PublicKey) {
   try {
     const info = await connection.getAccountInfo(getUserPositionPDA(user))
     if (!info) return null
-    const d = info.data; let o = 8
-    const userKey    = new PublicKey(d.slice(o, o+32)); o += 32
-    const bump       = d[o++]
-    const putBalance = Number(d.readBigUInt64LE(o))
-    return { user: userKey, bump, putBalance }
+    const d = info.data; let o = 8  // Skip discriminator
+    const owner  = new PublicKey(d.slice(o, o+32)); o += 32
+    const amount = Number(d.readBigUInt64LE(o))
+    return { owner, amount }
   } catch { return null }
 }
 
