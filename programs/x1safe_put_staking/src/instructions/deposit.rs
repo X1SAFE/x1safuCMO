@@ -142,7 +142,7 @@ pub fn handler(
     let bump = ctx.accounts.vault_state.bump;
     let seeds = &[
         seeds::VAULT_STATE,
-        &[bumps.vault_state],
+        &[bump],
     ];
     let signer = &[&seeds[..]];
     

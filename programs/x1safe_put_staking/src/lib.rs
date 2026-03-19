@@ -11,7 +11,7 @@ use instructions::*;
 use state::*;
 use error::*;
 
-declare_id!("F2JnWVnjP1h6WG7KKUHqhp23etEJ4amdJquAcE9ecCoe");
+declare_id!("HRWXebJQHDFmKtYbgm9HzhPbEtDh6DhgfDZYght4eQdx");
 
 #[program]
 pub mod x1safe_put_staking {
@@ -23,7 +23,7 @@ pub mod x1safe_put_staking {
         x1safe_decimals: u8,
         x1safe_put_decimals: u8,
     ) -> Result<()> {
-        instructions::initialize_vault::handler(ctx, x1safe_decimals, x1safe_put_decimals)
+        instructions::initialize::handler(ctx, x1safe_decimals, x1safe_put_decimals)
     }
 
     /// Deposit supported tokens and mint X1SAFE-PUT

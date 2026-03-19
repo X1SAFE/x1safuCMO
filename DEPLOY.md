@@ -2,9 +2,19 @@
 
 ## 📋 Thông tin Deploy
 
-**Ngày tạo:** 2026-03-18  
-**Người tạo:** Theo (@xxen_bot)  
-**Chủ sở hữu:** CMO XEN X1 🐾🐾🐾 (@Prxenx1)
+**Ngày deploy:** 2026-03-18  
+**Người deploy:** Theo (@xxen_bot)  
+**Chủ sở hữu:** CMO XEN X1 🐾🐾🐾 (@Prxenx1)  
+**Network:** X1 Testnet
+
+---
+
+## ✅ Deployment Status
+
+| Program | Status | Program ID | Deploy Tx |
+|---------|--------|------------|-----------|
+| **x1safu (v1)** | ✅ Deployed | `6eCAcBP3yM6emuochCcRMZ78Rz4xyPveoANH25HVpd4S` | `4kqtMAtf6cMjXAtqBbTaYGwhXdzD9hBKRYPASQYmAS6kRfF53wHrUwJf4dYQxXQkJB4p1XfM2szuWpAmodG5HUPe` |
+| **x1safe_put_staking (v2)** | ✅ Deployed | `HRWXebJQHDFmKtYbgm9HzhPbEtDh6DhgfDZYght4eQdx` | `PXQhNLHwD9Vwv5t7Hb6ULJuk59psJQcpKZahyNkEokXUP2YeMPG5QdeEhYLspW9NSZv4FgeNnk1AhLj2XtKNTr4` |
 
 ---
 
@@ -34,31 +44,15 @@ solana --version  # 1.18.x
 
 ---
 
-## 🚀 Hướng dẫn Deploy
-
-### Bước 1: Build
+## 🚀 Hướng dẫn Deploy (đã xong)
 
 ```bash
-cd /home/jack/.openclaw/workspace-cyberdyne/x1safe-put-staking-v2/
+# Build
 anchor build
+
+# Deploy (đã thực hiện)
+anchor deploy --provider.cluster https://rpc.testnet.x1.xyz
 ```
-
-### Bước 2: Deploy lên X1 Testnet
-
-```bash
-# Set cluster
-solana config set --url https://rpc.testnet.x1.xyz
-
-# Deploy
-anchor deploy --provider.cluster testnet
-```
-
-### Bước 3: Lưu thông tin
-
-Sau khi deploy thành công, ghi lại:
-- Program ID
-- Transaction signature
-- Deploy time
 
 ---
 
@@ -67,11 +61,12 @@ Sau khi deploy thành công, ghi lại:
 | Field | Value |
 |-------|-------|
 | **Program Name** | x1safe_put_staking |
-| **Program ID** | `F2JnWVnjP1h6WG7KKUHqhp23etEJ4amdJquAcE9ecCoe` |
+| **Program ID** | `HRWXebJQHDFmKtYbgm9HzhPbEtDh6DhgfDZYght4eQdx` |
 | **Anchor Version** | 0.30.1 |
-| **Solana Version** | 1.18.15 |
+| **Solana Version** | 1.18.26 |
 | **Network** | X1 Testnet |
 | **Cluster RPC** | https://rpc.testnet.x1.xyz |
+| **Deployer** | `2jchoLFVoxmJUcygc2cDfAqQb1yWUEjJihsw2ARbDRy3` (Theo) |
 
 ---
 
@@ -131,8 +126,10 @@ x1safe-put-staking-v2/
 ├── package.json
 ├── tsconfig.json
 ├── README.md
+├── DEPLOY.md          # ← This file
 ├── programs/
-│   └── x1safe_put_staking/
+│   ├── x1safu/        # v1 - Original vault
+│   └── x1safe_put_staking/  # v2.0 - PUT staking
 │       ├── Cargo.toml
 │       └── src/
 │           ├── lib.rs          # Program entry
@@ -176,6 +173,7 @@ x1safe-put-staking-v2/
 - **Builder:** Theo (@xxen_bot)
 - **Owner:** CMO XEN X1 🐾🐾🐾 (@Prxenx1)
 - **Workspace:** /home/jack/.openclaw/workspace-cyberdyne/
+- **GitHub:** https://github.com/X1SAFE/x1safuCMO
 
 ---
 
@@ -183,11 +181,22 @@ x1safe-put-staking-v2/
 
 | Step | Status | Time | Tx/Note |
 |------|--------|------|---------|
-| Build | ⏳ Pending | - | Chạy `anchor build` |
-| Deploy | ⏳ Pending | - | Chạy `anchor deploy` |
-| Verify | ⏳ Pending | - | Kiểm tra on-chain |
-| Initialize | ⏳ Pending | - | Gọi `initialize_vault` |
+| Build | ✅ Success | 2026-03-18 | Both programs compiled |
+| Deploy x1safu | ✅ Success | 2026-03-18 | `6eCAcBP3...` |
+| Deploy x1safe_put_staking | ✅ Success | 2026-03-18 | `HRWXebJQ...` |
+| Initialize Vault | ⏳ Pending | - | Cần gọi `initialize_vault` |
+| Add Supported Tokens | ⏳ Pending | - | 8 tokens |
 
 ---
 
-**Lưu ý:** File này sẽ được cập nhật sau khi deploy thành công.
+## 🚀 Next Steps
+
+1. **Initialize Vault** — Gọi instruction `initialize_vault` để khởi tạo
+2. **Add Supported Tokens** — Thêm 8 token vào vault
+3. **Update UI** — Cập nhật Program ID trong frontend
+4. **Test** — Chạy test trên testnet
+
+---
+
+**Deployed by:** Theo (@xxen_bot) for CMO XEN X1 🐾🐾🐾  
+**Date:** 2026-03-18 HST

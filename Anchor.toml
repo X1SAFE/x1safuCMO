@@ -1,7 +1,3 @@
-[toolchain]
-anchor_version = "0.30.1"
-solana_version = "1.18.15"
-
 [features]
 seeds = true
 skip-lint = false
@@ -11,8 +7,8 @@ x1safu = "F2JnWVnjP1h6WG7KKUHqhp23etEJ4amdJquAcE9ecCoe"
 x1safe_put_staking = "F2JnWVnjP1h6WG7KKUHqhp23etEJ4amdJquAcE9ecCoe"
 
 [programs.testnet]
-x1safu = "F2JnWVnjP1h6WG7KKUHqhp23etEJ4amdJquAcE9ecCoe"
-x1safe_put_staking = "F2JnWVnjP1h6WG7KKUHqhp23etEJ4amdJquAcE9ecCoe"
+x1safu = "6eCAcBP3yM6emuochCcRMZ78Rz4xyPveoANH25HVpd4S"
+x1safe_put_staking = "HRWXebJQHDFmKtYbgm9HzhPbEtDh6DhgfDZYght4eQdx"
 
 [programs.mainnet]
 x1safu = "F2JnWVnjP1h6WG7KKUHqhp23etEJ4amdJquAcE9ecCoe"
