@@ -5,7 +5,6 @@ import {
   TransactionInstruction, PublicKey,
 } from '@solana/web3.js'
 import {
-  TOKEN_PROGRAM_ID,
   TOKEN_2022_PROGRAM_ID,
   getAssociatedTokenAddressSync, getAccount,
 } from '@solana/spl-token'
