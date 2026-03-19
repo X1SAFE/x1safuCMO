@@ -1,8 +1,27 @@
-# X1SAFE-PUT Staking v2.0
+# X1SAFE Protocol
 
-Multi-asset staking vault with flexible lock periods and dual reward streams on X1 blockchain.
+Secure Savings Protocol on X1 Blockchain  
+**1 X1SAFE = 1 USD equivalent at deposit time**
 
-## Features
+## 🏗️ Architecture
+
+```
+x1safu/
+├── programs/x1safu/           # Original X1SAFE vault (v1)
+├── programs/x1safe_put_staking/  # X1SAFE-PUT Staking v2.0
+├── app/                       # React + Vite frontend
+├── scripts/                   # Deployment & utility scripts
+├── docs/                      # Documentation
+└── tests/                     # Anchor tests
+```
+
+---
+
+## 🆕 X1SAFE-PUT Staking v2.0
+
+Multi-asset staking vault with flexible lock periods and dual reward streams.
+
+### Features
 
 - **8 Supported Assets**: USDC.X (fixed 1:1), XNT, XEN, XNM, PURGE, THEO, AGI, PEPE (oracle pricing)
 - **X1SAFE Peg**: 1 X1SAFE = $0.01 USD
@@ -11,8 +30,6 @@ Multi-asset staking vault with flexible lock periods and dual reward streams on 
 - **Vesting Schedule**: 6 phases × 7 days = 42 days total
 - **Fee Split**: 60% stakers / 20% buyback / 20% treasury
 
-## Architecture
-
 ### Core Flow
 
 1. **Deposit** → Mint X1SAFE-PUT (represents USD value)
@@ -20,7 +37,7 @@ Multi-asset staking vault with flexible lock periods and dual reward streams on 
 3. **Exit Vault** → Burn X1SAFE-PUT, receive original asset, mint X1SAFE to reward pool
 4. **Claim** → USDC.X (immediate) / X1SAFE (vested)
 
-### Token Addresses
+### Token Addresses (Testnet)
 
 | Token | Mint |
 |-------|------|
@@ -33,27 +50,11 @@ Multi-asset staking vault with flexible lock periods and dual reward streams on 
 
 `2u6H7CjFLGVezjSWDy1Rt6cPo23h89vRqUhocw67RD8R`
 
-## Build Instructions
-
-```bash
-# Install dependencies
-yarn install
-
-# Build the program
-anchor build
-
-# Run tests
-anchor test
-
-# Deploy to X1 Testnet
-anchor deploy --provider.cluster testnet
-```
-
-## Program ID
+### Program ID
 
 `F2JnWVnjP1h6WG7KKUHqhp23etEJ4amdJquAcE9ecCoe`
 
-## Instructions
+### v2.0 Instructions
 
 | Instruction | Description |
 |-------------|-------------|
@@ -68,24 +69,64 @@ anchor deploy --provider.cluster testnet
 | `add_supported_token` | Add new supported token (admin) |
 | `update_oracle` | Update oracle for token (admin) |
 
-## Accounts
+---
 
-| Account | Purpose |
-|---------|---------|
-| `VaultState` | Global vault configuration |
-| `SupportedToken` | Token configuration (mint, oracle, vault) |
-| `UserPosition` | User's deposit position per token |
-| `StakeAccount` | Staking position for rewards |
-| `VestingSchedule` | 6-phase vesting for X1SAFE rewards |
+## 🚀 Quick Start
 
-## Security
+```bash
+# Clone
+git clone <repo>
+cd x1safu
 
-- PDA-based authority
-- Lock period enforcement
-- Oracle staleness checks (TODO)
-- Reentrancy protection via account constraints
-- Math overflow protection with checked arithmetic
+# Setup dependencies
+npm install
 
-## License
+# Build programs
+anchor build
+
+# Run tests
+anchor test
+
+# Deploy to X1 Testnet
+anchor deploy --provider.cluster testnet
+
+# Start dev server
+cd app && npm run dev
+```
+
+## 🛡️ Original X1SAFE Features (v1)
+
+- **Deposit**: Lock USDC.X, XEN, XNT, or XNM → Receive X1SAFE
+- **Exit**: Burn X1SAFE → Get original deposit back
+- **Sell**: Trade on xDEX
+- **Withdraw**: Move X1SAFE to wallet (lose exit rights)
+
+## 📝 Smart Contract
+
+- **Language**: Rust + Anchor 0.30.1
+- **Network**: X1 Testnet → Mainnet
+- **Programs**: x1safu (v1), x1safe_put_staking (v2)
+
+## 🎨 Frontend Stack
+
+- **Framework**: React 18 + TypeScript
+- **Build**: Vite
+- **UI**: Custom CSS
+- **Wallet**: Solana Wallet Adapter
+- **Deploy**: Vercel
+
+## 🔗 Links
+
+- **Live Site**: https://x1safu-cmo.vercel.app
+- **Testnet RPC**: https://rpc.testnet.x1.xyz
+- **X1 Explorer**: https://explorer.testnet.x1.xyz
+
+## 👥 Credits
+
+- Protocol: CMO XEN X1 🐾🐾🐾 (@Prxenx1)
+- Smart Contract v2.0: Theo (@xxen_bot)
+- Frontend: Theo (@xxen_bot)
+
+## 📄 License
 
 Private - Cyberdyne Unlimited LLC

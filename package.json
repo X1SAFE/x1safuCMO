@@ -1,12 +1,18 @@
 {
-  "name": "x1safe-put-staking-v2",
+  "name": "x1safu",
   "version": "2.0.0",
-  "description": "X1SAFE-PUT Staking v2.0 - Multi-asset staking vault",
-  "main": "index.js",
+  "description": "X1SAFE Protocol - Secure Savings on X1 Blockchain (v1 + v2)",
   "scripts": {
-    "test": "anchor test",
+    "dev": "cd app && npm run dev",
     "build": "anchor build",
-    "deploy": "anchor deploy",
+    "build:app": "cd app && npm run build",
+    "preview": "cd app && npm run preview",
+    "deploy:setup": "./scripts/setup-vercel.sh",
+    "deploy:preview": "./scripts/deploy-vercel.sh preview",
+    "deploy:prod": "./scripts/deploy-vercel.sh prod",
+    "test": "anchor test",
+    "deploy:program:testnet": "anchor deploy --provider.cluster https://rpc.testnet.x1.xyz",
+    "deploy:program:mainnet": "anchor deploy --provider.cluster https://rpc.mainnet.x1.xyz",
     "verify": "anchor verify",
     "idl": "anchor idl init --filepath target/idl/x1safe_put_staking.json F2JnWVnjP1h6WG7KKUHqhp23etEJ4amdJquAcE9ecCoe"
   },
@@ -15,10 +21,16 @@
     "anchor",
     "x1",
     "staking",
-    "defi"
+    "defi",
+    "vault"
   ],
   "author": "Cyberdyne Unlimited LLC",
   "license": "UNLICENSED",
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.30.1",
+    "@solana/spl-token": "^0.3.9",
+    "@solana/web3.js": "^1.87.0"
+  },
   "devDependencies": {
     "@types/bn.js": "^5.1.0",
     "@types/chai": "^4.3.0",
@@ -27,10 +39,5 @@
     "mocha": "^9.0.3",
     "ts-mocha": "^10.0.0",
     "typescript": "^4.3.5"
-  },
-  "dependencies": {
-    "@coral-xyz/anchor": "^0.30.1",
-    "@solana/spl-token": "^0.3.9",
-    "@solana/web3.js": "^1.87.0"
   }
 }

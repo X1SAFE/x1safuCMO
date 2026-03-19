@@ -1,0 +1,21 @@
+[package]
+name = "x1safu"
+version = "0.1.0"
+description = "X1SAFU - Secure Savings Protocol on X1 Blockchain"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "x1safu"
+
+[features]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+default = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
+
+[dependencies]
+anchor-lang = { version = "0.31.1", features = ["init-if-needed"] }
+anchor-spl = "0.31.1"
