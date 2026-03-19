@@ -1,6 +1,12 @@
-import { Connection, PublicKey } from '@solana/web3.js'
+import { Connection, PublicKey, TransactionInstruction } from '@solana/web3.js'
 import { AnchorProvider, Program, BN } from '@coral-xyz/anchor'
 import { getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID } from '@solana/spl-token'
+
+// ── X1 Testnet Specific Program IDs ───────────────────────────────────────────
+// X1 Testnet uses the standard Solana program addresses
+export const X1_TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA')
+export const X1_TOKEN_2022_PROGRAM_ID = new PublicKey('TokenzQdBNbLqP5VEhdkASEGJ5gGs84Su1VDjPW9S47')
+export const X1_ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL')
 
 // ── Config ────────────────────────────────────────────────────────────────────
 // X1SAFE Vault Program
@@ -563,4 +569,33 @@ export function toBaseUnits(amount: number, decimals: number): BN {
 // Price to on-chain format (× 10^6)
 export function toPriceOnChain(priceUsd: number): BN {
   return new BN(Math.round(priceUsd * 1_000_000))
+}
+
+// ── X1 Testnet ATA Creation Helper ───────────────────────────────────────────
+// The standard createAssociatedTokenAccountInstruction uses hardcoded Solana mainnet addresses
+// This helper creates the instruction with explicit X1 Testnet program IDs
+export function createX1AssociatedTokenAccountInstruction(
+  payer: PublicKey,
+  associatedToken: PublicKey,
+  owner: PublicKey,
+  mint: PublicKey,
+  tokenProgramId: PublicKey = TOKEN_2022_PROGRAM_ID,
+  associatedTokenProgramId: PublicKey = X1_ASSOCIATED_TOKEN_PROGRAM_ID
+): TransactionInstruction {
+  const keys = [
+    { pubkey: payer, isSigner: true, isWritable: true },
+    { pubkey: associatedToken, isSigner: false, isWritable: true },
+    { pubkey: owner, isSigner: false, isWritable: false },
+    { pubkey: mint, isSigner: false, isWritable: false },
+    { pubkey: tokenProgramId, isSigner: false, isWritable: false },
+  ]
+
+  // ATA program discriminator for 'Create' instruction
+  const data = Buffer.from([0])
+
+  return new TransactionInstruction({
+    programId: associatedTokenProgramId,
+    keys,
+    data,
+  })
 }

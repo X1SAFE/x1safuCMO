@@ -7,15 +7,14 @@ import {
 import {
   TOKEN_PROGRAM_ID,
   TOKEN_2022_PROGRAM_ID,
-  ASSOCIATED_TOKEN_PROGRAM_ID,
   getAssociatedTokenAddressSync, getAccount,
-  createAssociatedTokenAccountInstruction,
 } from '@solana/spl-token'
 import {
   PROGRAM_ID, ASSETS, EXPLORER,
   getVaultPDA, getPutMintPDA, getAssetConfigPDA,
   getReserveAccount, getUserPositionPDA,
   toBaseUnits, getTokenBalance,
+  createX1AssociatedTokenAccountInstruction,
 } from '../lib/vault'
 import { sha256 } from '@noble/hashes/sha256'
 import { AssetLogo } from './TokenLogo'
@@ -91,17 +90,17 @@ export function Deposit() {
       // Only create ATA for SPL tokens (not XNT native)
       if (!isXNT) {
         try { await getAccount(connection, reserveAccount, undefined, TOKEN_2022_PROGRAM_ID) } catch {
-          tx.add(createAssociatedTokenAccountInstruction(
+          tx.add(createX1AssociatedTokenAccountInstruction(
             wallet.publicKey, reserveAccount, vault, asset.mint,
-            TOKEN_2022_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID
+            TOKEN_2022_PROGRAM_ID
           ))
         }
       }
       
       try { await getAccount(connection, userPutAta, undefined, TOKEN_2022_PROGRAM_ID) } catch {
-        tx.add(createAssociatedTokenAccountInstruction(
+        tx.add(createX1AssociatedTokenAccountInstruction(
           wallet.publicKey, userPutAta, wallet.publicKey, putMint,
-          TOKEN_2022_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID
+          TOKEN_2022_PROGRAM_ID
         ))
       }
 
