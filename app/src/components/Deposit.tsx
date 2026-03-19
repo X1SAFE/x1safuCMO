@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react'
 import { useConnection, useWallet } from '@solana/wallet-adapter-react'
 import {
   Transaction, SystemProgram, SYSVAR_RENT_PUBKEY,
-  TransactionInstruction,
+  TransactionInstruction, PublicKey,
 } from '@solana/web3.js'
 import {
   TOKEN_PROGRAM_ID,
+  ASSOCIATED_TOKEN_PROGRAM_ID,
   getAssociatedTokenAddressSync, getAccount,
   createAssociatedTokenAccountInstruction,
 } from '@solana/spl-token'
@@ -13,10 +14,13 @@ import {
   PROGRAM_ID, ASSETS, EXPLORER,
   getVaultPDA, getPutMintPDA, getAssetConfigPDA,
   getReserveAccount, getUserPositionPDA,
-  toBaseUnits, getTokenBalance, getNativeBalance,
+  toBaseUnits, getTokenBalance,
 } from '../lib/vault'
 import { sha256 } from '@noble/hashes/sha256'
 import { AssetLogo } from './TokenLogo'
+
+// XNT is the native token (like SOL on Solana)
+const XNT_NATIVE_MINT = new PublicKey('CDREeqfWSxQvPa9ofxVrHFP5VZeF2xSc2EtAdXmNumuW')
 
 function disc(name: string): Buffer {
   return Buffer.from(sha256(new TextEncoder().encode('global:' + name))).subarray(0, 8)
@@ -44,9 +48,10 @@ export function Deposit() {
     const load = async () => {
       const result: Record<string, number> = {}
       for (const a of ASSETS) {
-        // XNT uses native balance (SOL-style), not SPL token
-        if (a.key === 'XNT') {
-          result[a.key] = await getNativeBalance(connection, wallet.publicKey!)
+        // XNT is native token - get native balance
+        if (a.mint.toBase58() === XNT_NATIVE_MINT.toBase58()) {
+          const balance = await connection.getBalance(wallet.publicKey!)
+          result[a.key] = balance / 10 ** a.decimals
         } else {
           result[a.key] = await getTokenBalance(connection, wallet.publicKey!, a.mint)
         }
@@ -70,21 +75,32 @@ export function Deposit() {
       const reserveAccount = getReserveAccount(asset.mint)
       const putMint        = getPutMintPDA()
       const userPosition   = getUserPositionPDA(wallet.publicKey)
-      const userAssetAta   = getAssociatedTokenAddressSync(asset.mint, wallet.publicKey, false, TOKEN_PROGRAM_ID)
       const userPutAta     = getAssociatedTokenAddressSync(putMint, wallet.publicKey, false, TOKEN_PROGRAM_ID)
+      
+      // Check if this is XNT (native token)
+      const isXNT = asset.mint.toBase58() === XNT_NATIVE_MINT.toBase58()
+      
+      // For XNT (native), use wallet address directly; for SPL tokens, use ATA
+      const userAssetAccount = isXNT 
+        ? wallet.publicKey 
+        : getAssociatedTokenAddressSync(asset.mint, wallet.publicKey, false, TOKEN_PROGRAM_ID)
 
       const tx = new Transaction()
 
-      try { await getAccount(connection, reserveAccount) } catch {
-        tx.add(createAssociatedTokenAccountInstruction(
-          wallet.publicKey, reserveAccount, vault, asset.mint,
-          undefined, TOKEN_PROGRAM_ID
-        ))
+      // Only create ATA for SPL tokens (not XNT native)
+      if (!isXNT) {
+        try { await getAccount(connection, reserveAccount) } catch {
+          tx.add(createAssociatedTokenAccountInstruction(
+            wallet.publicKey, reserveAccount, vault, asset.mint,
+            TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID
+          ))
+        }
       }
+      
       try { await getAccount(connection, userPutAta) } catch {
         tx.add(createAssociatedTokenAccountInstruction(
           wallet.publicKey, userPutAta, wallet.publicKey, putMint,
-          undefined, TOKEN_PROGRAM_ID
+          TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID
         ))
       }
 
@@ -93,21 +109,24 @@ export function Deposit() {
       disc('deposit').copy(data, 0)
       data.writeBigUInt64LE(BigInt(amountBN.toString()), 8)
 
+      // Build account keys - different for XNT vs SPL tokens
+      const keys = [
+        { pubkey: wallet.publicKey, isSigner: true,  isWritable: true  },
+        { pubkey: vault,            isSigner: false, isWritable: true  },
+        { pubkey: assetConfig,      isSigner: false, isWritable: true  },
+        { pubkey: reserveAccount,   isSigner: false, isWritable: true  },
+        { pubkey: userAssetAccount, isSigner: false, isWritable: true  },
+        { pubkey: putMint,          isSigner: false, isWritable: true  },
+        { pubkey: userPutAta,       isSigner: false, isWritable: true  },
+        { pubkey: userPosition,     isSigner: false, isWritable: true  },
+        { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+        { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+        { pubkey: SYSVAR_RENT_PUBKEY,      isSigner: false, isWritable: false },
+      ]
+
       tx.add(new TransactionInstruction({
         programId: PROGRAM_ID,
-        keys: [
-          { pubkey: wallet.publicKey, isSigner: true,  isWritable: true  },
-          { pubkey: vault,            isSigner: false, isWritable: true  },
-          { pubkey: assetConfig,      isSigner: false, isWritable: true  },
-          { pubkey: reserveAccount,   isSigner: false, isWritable: true  },
-          { pubkey: userAssetAta,     isSigner: false, isWritable: true  },
-          { pubkey: putMint,          isSigner: false, isWritable: true  },
-          { pubkey: userPutAta,       isSigner: false, isWritable: true  },
-          { pubkey: userPosition,     isSigner: false, isWritable: true  },
-          { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-          { pubkey: SYSVAR_RENT_PUBKEY,      isSigner: false, isWritable: false },
-        ],
+        keys,
         data,
       }))
 
@@ -122,8 +141,9 @@ export function Deposit() {
       // Refresh balances
       const updated: Record<string, number> = {}
       for (const a of ASSETS) {
-        if (a.key === 'XNT') {
-          updated[a.key] = await getNativeBalance(connection, wallet.publicKey!)
+        if (a.mint.toBase58() === XNT_NATIVE_MINT.toBase58()) {
+          const balance = await connection.getBalance(wallet.publicKey!)
+          updated[a.key] = balance / 10 ** a.decimals
         } else {
           updated[a.key] = await getTokenBalance(connection, wallet.publicKey!, a.mint)
         }
