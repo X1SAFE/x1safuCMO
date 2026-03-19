@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useConnection, useWallet, useAnchorWallet } from '@solana/wallet-adapter-react'
 import { AnchorProvider } from '@coral-xyz/anchor'
-import { getAssociatedTokenAddress, createAssociatedTokenAccountInstruction, getAccount } from '@solana/spl-token'
+import { getAssociatedTokenAddress, createAssociatedTokenAccountInstruction, getAccount, TOKEN_2022_PROGRAM_ID } from '@solana/spl-token'
 import { Transaction } from '@solana/web3.js'
 import {
   EXPLORER, IS_TESTNET,
@@ -40,13 +40,13 @@ export function Redeposit() {
       const putMint  = getPutMintPDA()
       const safeMint = getSafeMintPDA()
 
-      const userSafeAccount = await getAssociatedTokenAddress(safeMint, wallet.publicKey)
-      const userPutAta      = await getAssociatedTokenAddress(putMint, wallet.publicKey)
+      const userSafeAccount = await getAssociatedTokenAddress(safeMint, wallet.publicKey, false, TOKEN_2022_PROGRAM_ID)
+      const userPutAta      = await getAssociatedTokenAddress(putMint, wallet.publicKey, false, TOKEN_2022_PROGRAM_ID)
 
       // Ensure PUT ATA exists
-      try { await getAccount(connection, userPutAta) } catch {
+      try { await getAccount(connection, userPutAta, undefined, TOKEN_2022_PROGRAM_ID) } catch {
         const tx = new Transaction()
-        tx.add(createAssociatedTokenAccountInstruction(wallet.publicKey, userPutAta, wallet.publicKey, putMint))
+        tx.add(createAssociatedTokenAccountInstruction(wallet.publicKey, userPutAta, wallet.publicKey, putMint, TOKEN_2022_PROGRAM_ID))
         tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash
         tx.feePayer = wallet.publicKey
         const signed = await wallet.signTransaction!(tx)

@@ -1,6 +1,6 @@
 import { Connection, PublicKey } from '@solana/web3.js'
 import { AnchorProvider, Program, BN } from '@coral-xyz/anchor'
-import { getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from '@solana/spl-token'
+import { getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID } from '@solana/spl-token'
 
 // ── Config ────────────────────────────────────────────────────────────────────
 // X1SAFE Vault Program
@@ -483,17 +483,24 @@ export async function getTokenBalance(
   mint: PublicKey
 ): Promise<number> {
   try {
-    // Try canonical ATA first (explicit TOKEN_PROGRAM_ID)
-    const ata  = getAssociatedTokenAddressSync(mint, owner, false, TOKEN_PROGRAM_ID)
-    const info = await connection.getTokenAccountBalance(ata)
-    return info.value.uiAmount ?? 0
+    // Try Token-2022 first (X1 Testnet uses Token-2022)
+    const ata2022  = getAssociatedTokenAddressSync(mint, owner, false, TOKEN_2022_PROGRAM_ID)
+    const info2022 = await connection.getTokenAccountBalance(ata2022)
+    return info2022.value.uiAmount ?? 0
   } catch {
-    // Fallback: scan all token accounts for this mint
+    // Fallback: try SPL Token program
     try {
-      const accounts = await connection.getParsedTokenAccountsByOwner(owner, { mint }, 'confirmed')
-      if (!accounts.value.length) return 0
-      return accounts.value.reduce((sum, a) => sum + (a.account.data.parsed?.info?.tokenAmount?.uiAmount ?? 0), 0)
-    } catch { return 0 }
+      const ata  = getAssociatedTokenAddressSync(mint, owner, false, TOKEN_PROGRAM_ID)
+      const info = await connection.getTokenAccountBalance(ata)
+      return info.value.uiAmount ?? 0
+    } catch {
+      // Final fallback: scan all token accounts for this mint
+      try {
+        const accounts = await connection.getParsedTokenAccountsByOwner(owner, { mint }, 'confirmed')
+        if (!accounts.value.length) return 0
+        return accounts.value.reduce((sum, a) => sum + (a.account.data.parsed?.info?.tokenAmount?.uiAmount ?? 0), 0)
+      } catch { return 0 }
+    }
   }
 }
 

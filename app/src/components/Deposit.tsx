@@ -6,6 +6,7 @@ import {
 } from '@solana/web3.js'
 import {
   TOKEN_PROGRAM_ID,
+  TOKEN_2022_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
   getAssociatedTokenAddressSync, getAccount,
   createAssociatedTokenAccountInstruction,
@@ -75,7 +76,7 @@ export function Deposit() {
       const reserveAccount = getReserveAccount(asset.mint)
       const putMint        = getPutMintPDA()
       const userPosition   = getUserPositionPDA(wallet.publicKey)
-      const userPutAta     = getAssociatedTokenAddressSync(putMint, wallet.publicKey, false, TOKEN_PROGRAM_ID)
+      const userPutAta     = getAssociatedTokenAddressSync(putMint, wallet.publicKey, false, TOKEN_2022_PROGRAM_ID)
       
       // Check if this is XNT (native token)
       const isXNT = asset.mint.toBase58() === XNT_NATIVE_MINT.toBase58()
@@ -83,24 +84,24 @@ export function Deposit() {
       // For XNT (native), use wallet address directly; for SPL tokens, use ATA
       const userAssetAccount = isXNT 
         ? wallet.publicKey 
-        : getAssociatedTokenAddressSync(asset.mint, wallet.publicKey, false, TOKEN_PROGRAM_ID)
+        : getAssociatedTokenAddressSync(asset.mint, wallet.publicKey, false, TOKEN_2022_PROGRAM_ID)
 
       const tx = new Transaction()
 
       // Only create ATA for SPL tokens (not XNT native)
       if (!isXNT) {
-        try { await getAccount(connection, reserveAccount) } catch {
+        try { await getAccount(connection, reserveAccount, undefined, TOKEN_2022_PROGRAM_ID) } catch {
           tx.add(createAssociatedTokenAccountInstruction(
             wallet.publicKey, reserveAccount, vault, asset.mint,
-            TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID
+            TOKEN_2022_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID
           ))
         }
       }
       
-      try { await getAccount(connection, userPutAta) } catch {
+      try { await getAccount(connection, userPutAta, undefined, TOKEN_2022_PROGRAM_ID) } catch {
         tx.add(createAssociatedTokenAccountInstruction(
           wallet.publicKey, userPutAta, wallet.publicKey, putMint,
-          TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID
+          TOKEN_2022_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID
         ))
       }
 
@@ -119,7 +120,7 @@ export function Deposit() {
         { pubkey: putMint,          isSigner: false, isWritable: true  },
         { pubkey: userPutAta,       isSigner: false, isWritable: true  },
         { pubkey: userPosition,     isSigner: false, isWritable: true  },
-        { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+        { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
         { pubkey: SYSVAR_RENT_PUBKEY,      isSigner: false, isWritable: false },
       ]
