@@ -13,7 +13,7 @@ import {
   PROGRAM_ID, ASSETS, EXPLORER,
   getVaultPDA, getPutMintPDA, getAssetConfigPDA,
   getReserveAccount, getUserPositionPDA,
-  toBaseUnits, getTokenBalance,
+  toBaseUnits, getTokenBalance, getNativeBalance,
 } from '../lib/vault'
 import { sha256 } from '@noble/hashes/sha256'
 import { AssetLogo } from './TokenLogo'
@@ -43,7 +43,14 @@ export function Deposit() {
     if (!wallet.publicKey) return
     const load = async () => {
       const result: Record<string, number> = {}
-      for (const a of ASSETS) result[a.key] = await getTokenBalance(connection, wallet.publicKey!, a.mint)
+      for (const a of ASSETS) {
+        // XNT uses native balance (SOL-style), not SPL token
+        if (a.key === 'XNT') {
+          result[a.key] = await getNativeBalance(connection, wallet.publicKey!)
+        } else {
+          result[a.key] = await getTokenBalance(connection, wallet.publicKey!, a.mint)
+        }
+      }
       setBalances(result)
     }
     load()
@@ -114,7 +121,13 @@ export function Deposit() {
       setAmount('')
       // Refresh balances
       const updated: Record<string, number> = {}
-      for (const a of ASSETS) updated[a.key] = await getTokenBalance(connection, wallet.publicKey!, a.mint)
+      for (const a of ASSETS) {
+        if (a.key === 'XNT') {
+          updated[a.key] = await getNativeBalance(connection, wallet.publicKey!)
+        } else {
+          updated[a.key] = await getTokenBalance(connection, wallet.publicKey!, a.mint)
+        }
+      }
       setBalances(updated)
     } catch (e: any) {
       setError(e?.message || 'Transaction failed')

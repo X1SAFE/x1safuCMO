@@ -3,7 +3,7 @@ import { useConnection, useWallet } from '@solana/wallet-adapter-react'
 import {
   ASSETS, EXPLORER, IS_TESTNET, PROGRAM_ID, X1SAFE_PER_USD,
   fetchVaultState, fetchUserPosition, fetchStakePool, fetchUserStake,
-  getTokenBalance, getPutMintPDA, getSafeMintPDA, getSx1safeMintPDA,
+  getTokenBalance, getNativeBalance, getPutMintPDA, getSafeMintPDA, getSx1safeMintPDA,
   fetchAssetPrices, calcX1SAFE,
 } from '../lib/vault'
 
@@ -49,7 +49,9 @@ export function Dashboard() {
           getTokenBalance(connection, wallet.publicKey, putMint),
           getTokenBalance(connection, wallet.publicKey, safeMint),
           getTokenBalance(connection, wallet.publicKey, sx1sMint),
-          ...ASSETS.map(a => getTokenBalance(connection, wallet.publicKey!, a.mint)),
+          ...ASSETS.map(a => a.key === 'XNT' 
+            ? getNativeBalance(connection, wallet.publicKey!) 
+            : getTokenBalance(connection, wallet.publicKey!, a.mint)),
         ])
         setPosition(pos)
         setUserStake(stake)

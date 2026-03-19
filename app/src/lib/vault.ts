@@ -497,6 +497,18 @@ export async function getTokenBalance(
   }
 }
 
+// ── Native XNT balance (SOL-style balance) ────────────────────────────────────
+export async function getNativeBalance(
+  connection: Connection,
+  owner: PublicKey
+): Promise<number> {
+  try {
+    const balance = await connection.getBalance(owner)
+    // XNT has 9 decimals (same as SOL)
+    return balance / 1e9
+  } catch { return 0 }
+}
+
 // ── Oracle: xDEX pool list → real-time prices ─────────────────────────────────
 export async function fetchAssetPrices(): Promise<Record<string, number>> {
   const fallback = { USDCX: 1.0, XNT: 0.35, XEN: 0.00000000005, XNM: 0.001 }
