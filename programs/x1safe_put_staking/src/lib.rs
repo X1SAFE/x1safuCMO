@@ -43,6 +43,14 @@ pub mod x1safe_put_staking {
         instructions::exit_vault::handler(ctx, x1safe_put_amount)
     }
 
+    /// Redeem X1SAFE-PUT for X1SAFE (1:1) — stay in ecosystem
+    pub fn redeem_x1safe(
+        ctx: Context<RedeemX1safe>,
+        put_amount: u64,
+    ) -> Result<()> {
+        instructions::redeem_x1safe::handler(ctx, put_amount)
+    }
+
     /// Stake X1SAFE-PUT to start earning rewards
     pub fn stake(
         ctx: Context<Stake>,

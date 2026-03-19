@@ -1,6 +1,7 @@
 pub mod initialize;
 pub mod deposit;
 pub mod exit_vault;
+pub mod redeem_x1safe;
 pub mod stake;
 pub mod unstake;
 pub mod claim_fees;
@@ -11,6 +12,7 @@ pub mod admin;
 pub use initialize::*;
 pub use deposit::*;
 pub use exit_vault::*;
+pub use redeem_x1safe::*;
 pub use stake::*;
 pub use unstake::*;
 pub use claim_fees::*;
