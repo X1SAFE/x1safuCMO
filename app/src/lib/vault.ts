@@ -3,7 +3,10 @@ import { AnchorProvider, Program, BN } from '@coral-xyz/anchor'
 import { getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from '@solana/spl-token'
 
 // ── Config ────────────────────────────────────────────────────────────────────
-export const PROGRAM_ID = new PublicKey('3YqHMLwVVChoSAaN6SjVeKLwKNFN3WQMJ1tFGC2N7Upw')
+// X1SAFE Vault Program
+export const PROGRAM_ID = new PublicKey('9qu7VvWkuCW5xwpdxroQjsjAouKBV9xqrNccFNwNF13')
+// X1SAFE PUT Staking Program
+export const STAKING_PROGRAM_ID = new PublicKey('5zvbhhakw9Fh5socoTdm3jqn5LdrZzSWb2KaCmCW8GHe')
 
 // ── Verified X1 Testnet Mint Addresses ─────────────────────────────────────
 export const USDC_X_MINT = new PublicKey('6QNPqoF6GGhCFjTTQGxkpJkrH5ueS85b5RpX3GXdUSVw') // USDC.X 6 decimals
@@ -58,17 +61,27 @@ export const getPutMintPDA = () =>
 export const getSafeMintPDA = () =>
   PublicKey.findProgramAddressSync([Buffer.from('safe_mint')], PROGRAM_ID)[0]
 
+// ── Staking PDAs (use STAKING_PROGRAM_ID) ────────────────────────────────────
+export const getStakingVaultPDA = () =>
+  PublicKey.findProgramAddressSync([Buffer.from('vault')], STAKING_PROGRAM_ID)[0]
+
 export const getStakePoolPDA = () =>
-  PublicKey.findProgramAddressSync([Buffer.from('stake_pool')], PROGRAM_ID)[0]
+  PublicKey.findProgramAddressSync([Buffer.from('stake_pool')], STAKING_PROGRAM_ID)[0]
 
 export const getSx1safeMintPDA = () =>
-  PublicKey.findProgramAddressSync([Buffer.from('sx1safe_mint')], PROGRAM_ID)[0]
+  PublicKey.findProgramAddressSync([Buffer.from('sx1safe_mint')], STAKING_PROGRAM_ID)[0]
 
 export const getStakeReservePDA = () =>
-  PublicKey.findProgramAddressSync([Buffer.from('stake_reserve')], PROGRAM_ID)[0]
+  PublicKey.findProgramAddressSync([Buffer.from('stake_reserve')], STAKING_PROGRAM_ID)[0]
 
 export const getRewardReservePDA = () =>
-  PublicKey.findProgramAddressSync([Buffer.from('reward_reserve')], PROGRAM_ID)[0]
+  PublicKey.findProgramAddressSync([Buffer.from('reward_reserve')], STAKING_PROGRAM_ID)[0]
+
+export const getUserStakePDA = (user: PublicKey) =>
+  PublicKey.findProgramAddressSync(
+    [Buffer.from('user_stake'), user.toBuffer()],
+    STAKING_PROGRAM_ID
+  )[0]
 
 export const getAssetConfigPDA = (mint: PublicKey) =>
   PublicKey.findProgramAddressSync(
@@ -79,12 +92,6 @@ export const getAssetConfigPDA = (mint: PublicKey) =>
 export const getUserPositionPDA = (user: PublicKey) =>
   PublicKey.findProgramAddressSync(
     [Buffer.from('position'), user.toBuffer()],
-    PROGRAM_ID
-  )[0]
-
-export const getUserStakePDA = (user: PublicKey) =>
-  PublicKey.findProgramAddressSync(
-    [Buffer.from('user_stake'), user.toBuffer()],
     PROGRAM_ID
   )[0]
 
@@ -360,6 +367,28 @@ export function getProgram(provider: AnchorProvider) {
   return new Program(IDL, PROGRAM_ID, provider)
 }
 
+// ── Staking Program helper ──────────────────────────────────────────────────
+// Load staking IDL from public folder (will be fetched at runtime)
+let stakingIDL: any = null
+
+export async function loadStakingIDL(): Promise<any> {
+  if (stakingIDL) return stakingIDL
+  try {
+    const response = await fetch('/x1safe_put_staking.json')
+    stakingIDL = await response.json()
+    return stakingIDL
+  } catch (e) {
+    console.error('Failed to load staking IDL:', e)
+    return null
+  }
+}
+
+export function getStakingProgram(provider: AnchorProvider) {
+  // Use a minimal IDL for staking if fetch hasn't completed
+  // The actual IDL will be loaded at runtime
+  return new Program(stakingIDL || IDL, STAKING_PROGRAM_ID, provider)
+}
+
 // ── Vault state ───────────────────────────────────────────────────────────────
 export async function fetchVaultState(connection: Connection) {
   try {
@@ -425,7 +454,10 @@ export async function fetchStakePool(connection: Connection) {
     const apyBps = d.readUInt16LE(o)
     return { authority, bump, sx1safeMint, sx1safeMintBump, totalStaked, rewardPerTokenStored: Number(rptLo), undistributedRewards, apyBps }
 
-  } catch { return null }
+  } catch (e) { 
+    console.error('Error fetching stake pool:', e)
+    return null 
+  }
 }
 
 // ── User stake ────────────────────────────────────────────────────────────────

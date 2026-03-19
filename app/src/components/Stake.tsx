@@ -5,7 +5,8 @@ import { getAssociatedTokenAddress, createAssociatedTokenAccountInstruction, get
 import { Transaction } from '@solana/web3.js'
 import {
   EXPLORER, IS_TESTNET,
-  getProgram, getStakePoolPDA, getSafeMintPDA, getSx1safeMintPDA,
+  getStakingProgram, loadStakingIDL, getStakingVaultPDA,
+  getStakePoolPDA, getSafeMintPDA, getSx1safeMintPDA,
   getStakeReservePDA, getRewardReservePDA, getUserStakePDA,
   fetchStakePool, fetchUserStake, getTokenBalance, toBaseUnits,
 } from '../lib/vault'
@@ -49,8 +50,11 @@ export function Stake() {
     if (!wallet.publicKey || !anchorWallet || !amount) return
     setLoading(true); setError(''); setTxSig('')
     try {
+      // Load staking IDL first
+      await loadStakingIDL()
       const provider    = new AnchorProvider(connection, anchorWallet, { commitment: 'confirmed' })
-      const program     = getProgram(provider)
+      const program     = getStakingProgram(provider)
+      const stakingVault = getStakingVaultPDA()
       const stakePoolPK = getStakePoolPDA()
       const sx1safeMint = getSx1safeMintPDA()
       const safeMint    = getSafeMintPDA()
@@ -77,6 +81,7 @@ export function Stake() {
         .stake(toBaseUnits(numAmt, 6))
         .accounts({
           user: wallet.publicKey,
+          vault: stakingVault,
           stakePool: stakePoolPK,
           userStake: userStakePK,
           sx1safeMint,
@@ -96,8 +101,11 @@ export function Stake() {
     if (!wallet.publicKey || !anchorWallet || !amount) return
     setLoading(true); setError(''); setTxSig('')
     try {
+      // Load staking IDL first
+      await loadStakingIDL()
       const provider     = new AnchorProvider(connection, anchorWallet, { commitment: 'confirmed' })
-      const program      = getProgram(provider)
+      const program      = getStakingProgram(provider)
+      const stakingVault = getStakingVaultPDA()
       const stakePoolPK  = getStakePoolPDA()
       const sx1safeMint  = getSx1safeMintPDA()
       const safeMint     = getSafeMintPDA()
@@ -112,6 +120,7 @@ export function Stake() {
         .unstake(toBaseUnits(numAmt, 6))
         .accounts({
           user: wallet.publicKey,
+          vault: stakingVault,
           stakePool: stakePoolPK,
           userStake: userStakePK,
           sx1safeMint,
@@ -132,8 +141,11 @@ export function Stake() {
     if (!wallet.publicKey || !anchorWallet) return
     setLoading(true); setError(''); setTxSig('')
     try {
+      // Load staking IDL first
+      await loadStakingIDL()
       const provider      = new AnchorProvider(connection, anchorWallet, { commitment: 'confirmed' })
-      const program       = getProgram(provider)
+      const program       = getStakingProgram(provider)
+      const stakingVault  = getStakingVaultPDA()
       const stakePoolPK   = getStakePoolPDA()
       const safeMint      = getSafeMintPDA()
       const rewardReserve = getRewardReservePDA()
@@ -144,6 +156,7 @@ export function Stake() {
         .claimRewards()
         .accounts({
           user: wallet.publicKey,
+          vault: stakingVault,
           stakePool: stakePoolPK,
           userStake: userStakePK,
           userX1safe,

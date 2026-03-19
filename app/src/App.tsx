@@ -17,8 +17,6 @@ import './App.css'
 import { Dashboard }  from './components/Dashboard'
 import { Deposit }    from './components/Deposit'
 import { Withdraw }   from './components/Withdraw'
-import { Exit }       from './components/Exit'
-import { Redeposit }  from './components/Redeposit'
 import { Stake }      from './components/Stake'
 import { RPC_URL, IS_TESTNET } from './lib/vault'
 
@@ -26,16 +24,12 @@ declare global {
   interface Window { backpack?: any; xnft?: any }
 }
 
-type Tab = 'dashboard' | 'deposit' | 'withdraw' | 'exit' | 'redeposit' | 'stake'
+type Tab = 'dashboard' | 'deposit' | 'withdraw' | 'stake'
 
-const TABS_PRIMARY: { key: Tab; label: string; icon: string }[] = [
+const TABS: { key: Tab; label: string; icon: string }[] = [
+  { key: 'dashboard', label: 'Overview', icon: '◈' },
   { key: 'deposit',   label: 'Deposit',  icon: '↓' },
   { key: 'withdraw',  label: 'Withdraw', icon: '↑' },
-  { key: 'dashboard', label: 'Overview', icon: '◈' },
-]
-const TABS_SECONDARY: { key: Tab; label: string; icon: string }[] = [
-  { key: 'exit',      label: 'Exit',    icon: '✕' },
-  { key: 'redeposit', label: 'Re-lock', icon: '⟳' },
   { key: 'stake',     label: 'Stake',   icon: '⬡' },
 ]
 
@@ -352,25 +346,10 @@ function App() {
         </div>
       </header>
 
-      {/* ── Tab Nav (no Connect tab) ── */}
+      {/* ── Tab Nav ── */}
       <nav className="tab-nav">
-        {/* Primary row */}
         <div className="tab-row-primary">
-          {TABS_PRIMARY.map(t => (
-            <button
-              key={t.key}
-              data-tab={t.key}
-              className={`tab-btn${tab === t.key ? ' active' : ''}`}
-              onClick={() => setTab(t.key)}
-            >
-              <span className="tab-icon">{t.icon}</span>
-              {t.label}
-            </button>
-          ))}
-        </div>
-        {/* Secondary row */}
-        <div className="tab-row-secondary">
-          {TABS_SECONDARY.map(t => (
+          {TABS.map(t => (
             <button
               key={t.key}
               data-tab={t.key}
@@ -405,8 +384,6 @@ function App() {
         {tab === 'dashboard' && <Dashboard />}
         {tab === 'deposit'   && <Deposit />}
         {tab === 'withdraw'  && <Withdraw />}
-        {tab === 'exit'      && <Exit />}
-        {tab === 'redeposit' && <Redeposit />}
         {tab === 'stake'     && <Stake />}
       </main>
     </div>
