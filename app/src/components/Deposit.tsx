@@ -152,19 +152,20 @@ export function Deposit() {
       disc('deposit').copy(data, 0)
       data.writeBigUInt64LE(BigInt(amountBN.toString()), 8)
 
-      // Build account keys - different for XNT vs SPL tokens
+      // Build account keys — must match Deposit<'info> struct order exactly:
+      // user, vault, asset_config, reserve_account, user_asset_account,
+      // put_mint, user_put_ata, user_position, token_program, system_program
       const keys = [
-        { pubkey: wallet.publicKey, isSigner: true,  isWritable: true  },
-        { pubkey: vault,            isSigner: false, isWritable: true  },
-        { pubkey: assetConfig,      isSigner: false, isWritable: true  },
-        { pubkey: reserveAccount,   isSigner: false, isWritable: true  },
-        { pubkey: userAssetAccount, isSigner: false, isWritable: true  },
-        { pubkey: putMint,          isSigner: false, isWritable: true  },
-        { pubkey: userPutAta,       isSigner: false, isWritable: true  },
-        { pubkey: userPosition,     isSigner: false, isWritable: true  },
-        { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+        { pubkey: wallet.publicKey,        isSigner: true,  isWritable: true  },
+        { pubkey: vault,                   isSigner: false, isWritable: true  },
+        { pubkey: assetConfig,             isSigner: false, isWritable: true  },
+        { pubkey: reserveAccount,          isSigner: false, isWritable: true  },
+        { pubkey: userAssetAccount,        isSigner: false, isWritable: true  },
+        { pubkey: putMint,                 isSigner: false, isWritable: true  },
+        { pubkey: userPutAta,              isSigner: false, isWritable: true  },
+        { pubkey: userPosition,            isSigner: false, isWritable: true  },
+        { pubkey: TOKEN_PROGRAM_ID,        isSigner: false, isWritable: false },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-        { pubkey: SYSVAR_RENT_PUBKEY,      isSigner: false, isWritable: false },
       ]
 
       tx.add(new TransactionInstruction({
