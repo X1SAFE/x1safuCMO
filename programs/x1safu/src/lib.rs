@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Burn, Mint, MintTo, Token, TokenAccount, Transfer};
 
-declare_id!("3YqHMLwVVChoSAaN6SjVeKLwKNFN3WQMJ1tFGC2N7Upw");
+declare_id!("F2JnWVnjP1h6WG7KKUHqhp23etEJ4amdJquAcE9ecCoe");
 
 pub const X1SAFE_PER_USD: u64 = 100;      // 1 USD = 100 X1SAFE_PUT
 pub const PRICE_SCALE:    u128 = 1_000_000; // prices stored × 10^6
@@ -44,12 +44,21 @@ pub mod x1safu {
     // 1. Initialize vault state
     pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
         let v = &mut ctx.accounts.vault;
-        v.authority         = ctx.accounts.authority.key();
+        v.user_wallet       = ctx.accounts.authority.key();
         v.bump              = ctx.bumps.vault;
         v.paused            = false;
-        v.keeper            = ctx.accounts.authority.key();
-        v.total_put_supply  = 0;
-        v.total_free_supply = 0;
+        v.treasury          = ctx.accounts.authority.key();
+        v.fee_pool          = ctx.accounts.authority.key();
+        v.total_x1safe_put_supply = 0;
+        v.total_tvl_usd     = 0;
+        v.total_staked      = 0;
+        v.staker_fee_share  = 0;
+        v.buyback_fee_share = 0;
+        v.treasury_fee_share = 0;
+        v.x1safe_price_usd  = 0;
+        v.supported_tokens_count = 0;
+        v.padding_1         = [0; 23];
+        v.reserved          = [0; 722];
         Ok(())
     }
 
@@ -57,9 +66,7 @@ pub mod x1safu {
     pub fn create_mints(ctx: Context<CreateMints>) -> Result<()> {
         let v = &mut ctx.accounts.vault;
         v.x1safe_put_mint  = ctx.accounts.put_mint.key();
-        v.put_mint_bump    = ctx.bumps.put_mint;
-        v.x1safe_safe_mint = ctx.accounts.safe_mint.key();
-        v.safe_mint_bump   = ctx.bumps.safe_mint;
+        v.x1safe_mint      = ctx.accounts.safe_mint.key();
         Ok(())
     }
 
@@ -98,7 +105,7 @@ pub mod x1safu {
         let caller = ctx.accounts.caller.key();
         let vault  = &ctx.accounts.vault;
         require!(
-            caller == vault.authority || caller == vault.keeper,
+            caller == vault.user_wallet || caller == vault.treasury,
             ErrorCode::Unauthorized
         );
         let cfg = &mut ctx.accounts.asset_config;
@@ -115,7 +122,6 @@ pub mod x1safu {
         let price_usd  = ctx.accounts.asset_config.price_usd;
         let decimals   = ctx.accounts.asset_config.decimals;
         let vault_bump = ctx.accounts.vault.bump;
-        let put_bump   = ctx.accounts.vault.put_mint_bump;
 
         require!(!ctx.accounts.vault.paused, ErrorCode::VaultPaused);
         require!(price_usd > 0, ErrorCode::InvalidOraclePrice);
@@ -142,7 +148,7 @@ pub mod x1safu {
         let user_put_ai = ctx.accounts.user_put_ata.to_account_info();
 
         // CEI: state first
-        ctx.accounts.vault.total_put_supply = ctx.accounts.vault.total_put_supply
+        ctx.accounts.vault.total_x1safe_put_supply = ctx.accounts.vault.total_x1safe_put_supply
             .checked_add(put_amount).ok_or(ErrorCode::MathOverflow)?;
         ctx.accounts.asset_config.reserve_balance = ctx.accounts.asset_config.reserve_balance
             .checked_add(amount).ok_or(ErrorCode::MathOverflow)?;
@@ -180,8 +186,6 @@ pub mod x1safu {
         require!(put_amount > 0, ErrorCode::InvalidAmount);
 
         let vault_bump = ctx.accounts.vault.bump;
-        let safe_bump  = ctx.accounts.vault.safe_mint_bump;
-        let _ = safe_bump; // used via seeds
 
         require!(!ctx.accounts.vault.paused, ErrorCode::VaultPaused);
 
@@ -210,9 +214,9 @@ pub mod x1safu {
             put_amount,
         )?;
 
-        ctx.accounts.vault.total_put_supply = ctx.accounts.vault.total_put_supply
+        ctx.accounts.vault.total_x1safe_put_supply = ctx.accounts.vault.total_x1safe_put_supply
             .checked_sub(put_amount).ok_or(ErrorCode::MathOverflow)?;
-        ctx.accounts.vault.total_free_supply = ctx.accounts.vault.total_free_supply
+        ctx.accounts.vault.total_tvl_usd = ctx.accounts.vault.total_tvl_usd
             .checked_add(put_amount).ok_or(ErrorCode::MathOverflow)?;
 
         ctx.accounts.user_position.put_balance = ctx.accounts.user_position.put_balance
@@ -230,7 +234,7 @@ pub mod x1safu {
     ) -> Result<()> {
         require!(safe_burn_amount > 0, ErrorCode::InvalidAmount);
 
-        let total_free = ctx.accounts.vault.total_free_supply;
+        let total_free = ctx.accounts.vault.total_tvl_usd;
         let vault_bump = ctx.accounts.vault.bump;
 
         require!(!ctx.accounts.vault.paused, ErrorCode::VaultPaused);
@@ -251,7 +255,7 @@ pub mod x1safu {
             safe_burn_amount,
         )?;
 
-        ctx.accounts.vault.total_free_supply = total_free
+        ctx.accounts.vault.total_tvl_usd = total_free
             .checked_sub(safe_burn_amount).ok_or(ErrorCode::MathOverflow)?;
 
         // Release proportional collateral from each reserve
@@ -320,9 +324,9 @@ pub mod x1safu {
             safe_amount,
         )?;
 
-        ctx.accounts.vault.total_free_supply = ctx.accounts.vault.total_free_supply
+        ctx.accounts.vault.total_tvl_usd = ctx.accounts.vault.total_tvl_usd
             .checked_sub(safe_amount).ok_or(ErrorCode::MathOverflow)?;
-        ctx.accounts.vault.total_put_supply = ctx.accounts.vault.total_put_supply
+        ctx.accounts.vault.total_x1safe_put_supply = ctx.accounts.vault.total_x1safe_put_supply
             .checked_add(safe_amount).ok_or(ErrorCode::MathOverflow)?;
 
         msg!("Redeposit: {} X1SAFE → {} X1SAFE_PUT", safe_amount, safe_amount);
@@ -489,7 +493,7 @@ pub mod x1safu {
         require!(amount > 0, ErrorCode::InvalidAmount);
         let caller = ctx.accounts.caller.key();
         require!(
-            caller == ctx.accounts.vault.authority || caller == ctx.accounts.vault.keeper,
+            caller == ctx.accounts.vault.user_wallet || caller == ctx.accounts.vault.treasury,
             ErrorCode::Unauthorized
         );
 
@@ -552,7 +556,7 @@ pub struct CreateMints<'info> {
         mut,
         seeds = [b"vault"],
         bump = vault.bump,
-        constraint = vault.authority == authority.key() @ ErrorCode::Unauthorized,
+        constraint = vault.user_wallet == authority.key() @ ErrorCode::Unauthorized,
     )]
     pub vault: Account<'info, VaultState>,
 
@@ -584,7 +588,7 @@ pub struct InitStakePool<'info> {
 
     #[account(
         seeds = [b"vault"], bump = vault.bump,
-        constraint = vault.authority == authority.key() @ ErrorCode::Unauthorized,
+        constraint = vault.user_wallet == authority.key() @ ErrorCode::Unauthorized,
     )]
     pub vault: Account<'info, VaultState>,
 
@@ -595,7 +599,7 @@ pub struct InitStakePool<'info> {
     )]
     pub stake_pool: Account<'info, StakePool>,
 
-    #[account(seeds = [b"safe_mint"], bump = vault.safe_mint_bump)]
+    #[account(seeds = [b"safe_mint"], bump)]
     pub safe_mint: Account<'info, Mint>,
 
     #[account(
@@ -634,7 +638,7 @@ pub struct AddAsset<'info> {
 
     #[account(
         seeds = [b"vault"], bump = vault.bump,
-        constraint = vault.authority == authority.key() @ ErrorCode::Unauthorized,
+        constraint = vault.user_wallet == authority.key() @ ErrorCode::Unauthorized,
     )]
     pub vault: Account<'info, VaultState>,
 
@@ -693,7 +697,7 @@ pub struct Deposit<'info> {
     )]
     pub user_asset_account: Account<'info, TokenAccount>,
 
-    #[account(mut, seeds = [b"put_mint"], bump = vault.put_mint_bump)]
+    #[account(mut, seeds = [b"put_mint"], bump)]
     pub put_mint: Account<'info, Mint>,
 
     #[account(
@@ -723,10 +727,10 @@ pub struct Withdraw<'info> {
     #[account(mut, seeds = [b"vault"], bump = vault.bump)]
     pub vault: Account<'info, VaultState>,
 
-    #[account(mut, seeds = [b"put_mint"], bump = vault.put_mint_bump)]
+    #[account(mut, seeds = [b"put_mint"], bump)]
     pub put_mint: Account<'info, Mint>,
 
-    #[account(mut, seeds = [b"safe_mint"], bump = vault.safe_mint_bump)]
+    #[account(mut, seeds = [b"safe_mint"], bump)]
     pub safe_mint: Account<'info, Mint>,
 
     #[account(mut, token::mint = put_mint, token::authority = user)]
@@ -753,7 +757,7 @@ pub struct Exit<'info> {
     #[account(mut, seeds = [b"vault"], bump = vault.bump)]
     pub vault: Account<'info, VaultState>,
 
-    #[account(mut, seeds = [b"safe_mint"], bump = vault.safe_mint_bump)]
+    #[account(mut, seeds = [b"safe_mint"], bump)]
     pub safe_mint: Account<'info, Mint>,
 
     #[account(mut, token::mint = safe_mint, token::authority = user)]
@@ -770,10 +774,10 @@ pub struct Redeposit<'info> {
     #[account(mut, seeds = [b"vault"], bump = vault.bump)]
     pub vault: Account<'info, VaultState>,
 
-    #[account(mut, seeds = [b"safe_mint"], bump = vault.safe_mint_bump)]
+    #[account(mut, seeds = [b"safe_mint"], bump)]
     pub safe_mint: Account<'info, Mint>,
 
-    #[account(mut, seeds = [b"put_mint"], bump = vault.put_mint_bump)]
+    #[account(mut, seeds = [b"put_mint"], bump)]
     pub put_mint: Account<'info, Mint>,
 
     #[account(mut, token::mint = safe_mint, token::authority = user)]
@@ -891,7 +895,7 @@ pub struct DepositRewards<'info> {
 #[derive(Accounts)]
 pub struct AdminVault<'info> {
     #[account(
-        constraint = authority.key() == vault.authority @ ErrorCode::Unauthorized,
+        constraint = authority.key() == vault.user_wallet @ ErrorCode::Unauthorized,
     )]
     pub authority: Signer<'info>,
 
@@ -903,20 +907,28 @@ pub struct AdminVault<'info> {
 
 #[account]
 pub struct VaultState {
-    pub authority:         Pubkey, // 32
-    pub bump:              u8,     // 1
-    pub paused:            bool,   // 1
-    pub x1safe_put_mint:   Pubkey, // 32
-    pub put_mint_bump:     u8,     // 1
-    pub x1safe_safe_mint:  Pubkey, // 32
-    pub safe_mint_bump:    u8,     // 1
-    pub total_put_supply:  u64,    // 8
-    pub total_free_supply: u64,    // 8
-    pub keeper:            Pubkey, // 32
+    pub user_wallet:         Pubkey, // 32 - offset 0
+    pub treasury:            Pubkey, // 32 - offset 32
+    pub fee_pool:            Pubkey, // 32 - offset 64
+    pub x1safe_mint:         Pubkey, // 32 - offset 96
+    pub x1safe_put_mint:     Pubkey, // 32 - offset 128
+    pub usdc_mint:           Pubkey, // 32 - offset 160
+    pub supported_tokens_count: u8, // 1 - offset 192
+    pub padding_1:           [u8; 23], // 23 - offset 193
+    pub total_tvl_usd:       u64,    // 8 - offset 216
+    pub total_x1safe_put_supply: u64, // 8 - offset 224
+    pub total_staked:        u64,    // 8 - offset 232
+    pub staker_fee_share:    u16,    // 2 - offset 240
+    pub buyback_fee_share:   u16,    // 2 - offset 242
+    pub treasury_fee_share:  u16,    // 2 - offset 244
+    pub x1safe_price_usd:    u64,    // 8 - offset 246
+    pub bump:                u8,     // 1 - offset 254
+    pub paused:              bool,   // 1 - offset 255
+    pub reserved:            [u8; 722], // 722 - offset 256 (978 - 256 = 722)
 }
 
 impl VaultState {
-    pub const SIZE: usize = 32 + 1 + 1 + 32 + 1 + 32 + 1 + 8 + 8 + 32; // 148
+    pub const SIZE: usize = 32*6 + 1 + 23 + 8*4 + 2*3 + 1 + 1 + 722; // 978
 }
 
 #[account]

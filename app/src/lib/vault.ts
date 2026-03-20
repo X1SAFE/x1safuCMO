@@ -426,6 +426,8 @@ export function toPriceOnChain(priceUsd: number): BN {
 // ── X1 Testnet ATA Creation Helper ───────────────────────────────────────────
 // The standard createAssociatedTokenAccountInstruction uses hardcoded Solana mainnet addresses
 // This helper creates the instruction with explicit X1 Testnet program IDs
+import { SystemProgram, SYSVAR_RENT_PUBKEY } from '@solana/web3.js'
+
 export function createX1AssociatedTokenAccountInstruction(
   payer: PublicKey,
   associatedToken: PublicKey,
@@ -439,7 +441,9 @@ export function createX1AssociatedTokenAccountInstruction(
     { pubkey: associatedToken, isSigner: false, isWritable: true },
     { pubkey: owner, isSigner: false, isWritable: false },
     { pubkey: mint, isSigner: false, isWritable: false },
+    { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
     { pubkey: tokenProgramId, isSigner: false, isWritable: false },
+    { pubkey: SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false },
   ]
 
   // ATA program discriminator for 'Create' instruction
