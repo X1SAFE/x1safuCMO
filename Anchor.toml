@@ -8,7 +8,7 @@ x1safe_put_staking = "F2JnWVnjP1h6WG7KKUHqhp23etEJ4amdJquAcE9ecCoe"
 
 [programs.testnet]
 x1safu = "6eCAcBP3yM6emuochCcRMZ78Rz4xyPveoANH25HVpd4S"
-x1safe_put_staking = "HRWXebJQHDFmKtYbgm9HzhPbEtDh6DhgfDZYght4eQdx"
+x1safe_put_staking = "8s8JbaAtWtCKSyPfAxEN2vJLJFc3kWokxXxgCRvtHq9u"
 
 [programs.mainnet]
 x1safu = "F2JnWVnjP1h6WG7KKUHqhp23etEJ4amdJquAcE9ecCoe"

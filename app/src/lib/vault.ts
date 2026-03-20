@@ -12,7 +12,8 @@ export const X1_ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey('ATokenGPvbdGVxr1b2h
 // X1SAFE Vault Program (x1safu)
 export const PROGRAM_ID = new PublicKey('F2JnWVnjP1h6WG7KKUHqhp23etEJ4amdJquAcE9ecCoe')
 // X1SAFE PUT Staking Program
-export const STAKING_PROGRAM_ID = new PublicKey('5zvbhhakw9Fh5socoTdm3jqn5LdrZzSWb2KaCmCW8GHe')
+// x1safe_put_staking program — deployed 2026-03-20, declare_id matches
+export const STAKING_PROGRAM_ID = new PublicKey('8s8JbaAtWtCKSyPfAxEN2vJLJFc3kWokxXxgCRvtHq9u')
 
 // ── Verified X1 Testnet Mint Addresses ─────────────────────────────────────
 export const USDC_X_MINT = new PublicKey('6QNPqoF6GGhCFjTTQGxkpJkrH5ueS85b5RpX3GXdUSVw') // USDC.X 6 decimals
@@ -67,22 +68,41 @@ export const getPutMintPDA = () =>
 export const getSafeMintPDA = () =>
   PublicKey.findProgramAddressSync([Buffer.from('safe_mint')], PROGRAM_ID)[0]
 
-// ── Staking PDAs (use STAKING_PROGRAM_ID) ────────────────────────────────────
+// ── x1safe_put_staking PDAs ────────────────────────────────────────────────
+// Seeds from programs/x1safe_put_staking/src/utils.rs (verified 2026-03-20)
+// VAULT_STATE = b"vault_state"
+// USER_POSITION = b"user_position"
+// STAKE_ACCOUNT = b"stake_account"
+// REWARD_POOL = b"reward_pool"
 export const getStakingVaultPDA = () =>
-  PublicKey.findProgramAddressSync([Buffer.from('vault')], STAKING_PROGRAM_ID)[0]
+  PublicKey.findProgramAddressSync([Buffer.from('vault_state')], STAKING_PROGRAM_ID)[0]
 
-export const getStakePoolPDA = () =>
-  PublicKey.findProgramAddressSync([Buffer.from('stake_pool')], STAKING_PROGRAM_ID)[0]
+export const getStakeAccountPDA = (user: PublicKey, tokenMint: PublicKey) =>
+  PublicKey.findProgramAddressSync(
+    [Buffer.from('stake_account'), user.toBuffer(), tokenMint.toBuffer()],
+    STAKING_PROGRAM_ID
+  )[0]
 
+export const getStakingUserPositionPDA = (user: PublicKey, tokenMint: PublicKey) =>
+  PublicKey.findProgramAddressSync(
+    [Buffer.from('user_position'), user.toBuffer(), tokenMint.toBuffer()],
+    STAKING_PROGRAM_ID
+  )[0]
+
+export const getRewardPoolPDA = (vaultState: PublicKey) =>
+  PublicKey.findProgramAddressSync(
+    [Buffer.from('reward_pool'), vaultState.toBuffer()],
+    STAKING_PROGRAM_ID
+  )[0]
+
+// Keep legacy aliases for backward compat with old Stake.tsx
+export const getStakePoolPDA = () => getStakingVaultPDA()
 export const getSx1safeMintPDA = () =>
   PublicKey.findProgramAddressSync([Buffer.from('sx1safe_mint')], STAKING_PROGRAM_ID)[0]
-
 export const getStakeReservePDA = () =>
   PublicKey.findProgramAddressSync([Buffer.from('stake_reserve')], STAKING_PROGRAM_ID)[0]
-
 export const getRewardReservePDA = () =>
   PublicKey.findProgramAddressSync([Buffer.from('reward_reserve')], STAKING_PROGRAM_ID)[0]
-
 export const getUserStakePDA = (user: PublicKey) =>
   PublicKey.findProgramAddressSync(
     [Buffer.from('user_stake'), user.toBuffer()],

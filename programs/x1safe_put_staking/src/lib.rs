@@ -11,7 +11,7 @@ use instructions::*;
 use state::*;
 use error::*;
 
-declare_id!("HRWXebJQHDFmKtYbgm9HzhPbEtDh6DhgfDZYght4eQdx");
+declare_id!("8s8JbaAtWtCKSyPfAxEN2vJLJFc3kWokxXxgCRvtHq9u");
 
 #[program]
 pub mod x1safe_put_staking {
