@@ -41,8 +41,6 @@ function createATAInstruction(
 import { sha256 } from '@noble/hashes/sha256'
 import { AssetLogo } from './TokenLogo'
 
-// XNT is the native token (like SOL on Solana)
-const XNT_NATIVE_MINT = new PublicKey('CDREeqfWSxQvPa9ofxVrHFP5VZeF2xSc2EtAdXmNumuW')
 
 function disc(name: string): Buffer {
   return Buffer.from(sha256(new TextEncoder().encode('global:' + name))).subarray(0, 8)
@@ -85,13 +83,8 @@ export function Deposit() {
     const load = async () => {
       const result: Record<string, number> = {}
       for (const a of ASSETS) {
-        // XNT is native token - get native balance
-        if (a.mint.toBase58() === XNT_NATIVE_MINT.toBase58()) {
-          const balance = await connection.getBalance(wallet.publicKey!)
-          result[a.key] = balance / 10 ** a.decimals
-        } else {
-          result[a.key] = await getTokenBalance(connection, wallet.publicKey!, a.mint)
-        }
+        // XNT on X1 is an SPL token — always use token balance
+        result[a.key] = await getTokenBalance(connection, wallet.publicKey!, a.mint)
       }
       setBalances(result)
     }
@@ -126,18 +119,18 @@ export function Deposit() {
       const userPosition   = getUserPositionPDA(wallet.publicKey)
       const userPutAta     = getAssociatedTokenAddressSync(putMint, wallet.publicKey, false, TOKEN_PROGRAM_ID)
 
-      // Check if this is XNT (native token)
-      const isXNT = asset.mint.toBase58() === XNT_NATIVE_MINT.toBase58()
-
-      // For XNT (native), use wallet address directly; for SPL tokens, use ATA
-      const userAssetAccount = isXNT
-        ? wallet.publicKey
-        : getAssociatedTokenAddressSync(asset.mint, wallet.publicKey, false, TOKEN_PROGRAM_ID)
+      // XNT on X1 is an SPL token (not native coin) — always use ATA
+      const userAssetAccount = getAssociatedTokenAddressSync(asset.mint, wallet.publicKey, false, TOKEN_PROGRAM_ID)
 
       const tx = new Transaction()
 
-      // Only create ATA for SPL tokens (not XNT native)
-      if (!isXNT) {
+      // Ensure user's ATA for the deposited asset exists
+      try { await getAccount(connection, userAssetAccount, undefined, TOKEN_PROGRAM_ID) } catch {
+        tx.add(createATAInstruction(wallet.publicKey, userAssetAccount, wallet.publicKey, asset.mint))
+      }
+
+      // Ensure vault reserve ATA exists
+      {
         try { await getAccount(connection, reserveAccount, undefined, TOKEN_PROGRAM_ID) } catch {
           tx.add(createATAInstruction(wallet.publicKey, reserveAccount, vault, asset.mint))
         }
@@ -182,15 +175,10 @@ export function Deposit() {
       await connection.confirmTransaction(sig, 'confirmed')
       setTxSig(sig)
       setAmount('')
-      // Refresh balances
+      // Refresh balances — XNT is SPL token, always use token balance
       const updated: Record<string, number> = {}
       for (const a of ASSETS) {
-        if (a.mint.toBase58() === XNT_NATIVE_MINT.toBase58()) {
-          const balance = await connection.getBalance(wallet.publicKey!)
-          updated[a.key] = balance / 10 ** a.decimals
-        } else {
-          updated[a.key] = await getTokenBalance(connection, wallet.publicKey!, a.mint)
-        }
+        updated[a.key] = await getTokenBalance(connection, wallet.publicKey!, a.mint)
       }
       setBalances(updated)
     } catch (e: any) {
