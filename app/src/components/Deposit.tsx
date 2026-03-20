@@ -5,16 +5,39 @@ import {
   TransactionInstruction, PublicKey,
 } from '@solana/web3.js'
 import {
-  TOKEN_2022_PROGRAM_ID,
+  TOKEN_PROGRAM_ID,
   getAssociatedTokenAddressSync, getAccount,
+  ASSOCIATED_TOKEN_PROGRAM_ID,
 } from '@solana/spl-token'
 import {
   PROGRAM_ID, ASSETS, EXPLORER,
   getVaultPDA, getPutMintPDA, getAssetConfigPDA,
   getReserveAccount, getUserPositionPDA,
   toBaseUnits, getTokenBalance,
-  createX1AssociatedTokenAccountInstruction,
 } from '../lib/vault'
+
+// Standard ATA instruction using Token (classic) program — X1 Testnet
+function createATAInstruction(
+  payer: PublicKey,
+  ata: PublicKey,
+  owner: PublicKey,
+  mint: PublicKey,
+): TransactionInstruction {
+  const keys = [
+    { pubkey: payer,                      isSigner: true,  isWritable: true  },
+    { pubkey: ata,                        isSigner: false, isWritable: true  },
+    { pubkey: owner,                      isSigner: false, isWritable: false },
+    { pubkey: mint,                       isSigner: false, isWritable: false },
+    { pubkey: SystemProgram.programId,    isSigner: false, isWritable: false },
+    { pubkey: TOKEN_PROGRAM_ID,           isSigner: false, isWritable: false },
+    { pubkey: SYSVAR_RENT_PUBKEY,         isSigner: false, isWritable: false },
+  ]
+  return new TransactionInstruction({
+    programId: ASSOCIATED_TOKEN_PROGRAM_ID,
+    keys,
+    data: Buffer.from([0]),
+  })
+}
 import { sha256 } from '@noble/hashes/sha256'
 import { AssetLogo } from './TokenLogo'
 
@@ -101,33 +124,27 @@ export function Deposit() {
       const reserveAccount = getReserveAccount(asset.mint)
       const putMint        = getPutMintPDA()
       const userPosition   = getUserPositionPDA(wallet.publicKey)
-      const userPutAta     = getAssociatedTokenAddressSync(putMint, wallet.publicKey, false, TOKEN_2022_PROGRAM_ID)
-      
+      const userPutAta     = getAssociatedTokenAddressSync(putMint, wallet.publicKey, false, TOKEN_PROGRAM_ID)
+
       // Check if this is XNT (native token)
       const isXNT = asset.mint.toBase58() === XNT_NATIVE_MINT.toBase58()
-      
+
       // For XNT (native), use wallet address directly; for SPL tokens, use ATA
-      const userAssetAccount = isXNT 
-        ? wallet.publicKey 
-        : getAssociatedTokenAddressSync(asset.mint, wallet.publicKey, false, TOKEN_2022_PROGRAM_ID)
+      const userAssetAccount = isXNT
+        ? wallet.publicKey
+        : getAssociatedTokenAddressSync(asset.mint, wallet.publicKey, false, TOKEN_PROGRAM_ID)
 
       const tx = new Transaction()
 
       // Only create ATA for SPL tokens (not XNT native)
       if (!isXNT) {
-        try { await getAccount(connection, reserveAccount, undefined, TOKEN_2022_PROGRAM_ID) } catch {
-          tx.add(createX1AssociatedTokenAccountInstruction(
-            wallet.publicKey, reserveAccount, vault, asset.mint,
-            TOKEN_2022_PROGRAM_ID
-          ))
+        try { await getAccount(connection, reserveAccount, undefined, TOKEN_PROGRAM_ID) } catch {
+          tx.add(createATAInstruction(wallet.publicKey, reserveAccount, vault, asset.mint))
         }
       }
-      
-      try { await getAccount(connection, userPutAta, undefined, TOKEN_2022_PROGRAM_ID) } catch {
-        tx.add(createX1AssociatedTokenAccountInstruction(
-          wallet.publicKey, userPutAta, wallet.publicKey, putMint,
-          TOKEN_2022_PROGRAM_ID
-        ))
+
+      try { await getAccount(connection, userPutAta, undefined, TOKEN_PROGRAM_ID) } catch {
+        tx.add(createATAInstruction(wallet.publicKey, userPutAta, wallet.publicKey, putMint))
       }
 
       const amountBN = toBaseUnits(numAmount, asset.decimals)
@@ -145,7 +162,7 @@ export function Deposit() {
         { pubkey: putMint,          isSigner: false, isWritable: true  },
         { pubkey: userPutAta,       isSigner: false, isWritable: true  },
         { pubkey: userPosition,     isSigner: false, isWritable: true  },
-        { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
+        { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
         { pubkey: SYSVAR_RENT_PUBKEY,      isSigner: false, isWritable: false },
       ]
