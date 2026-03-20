@@ -321,6 +321,8 @@ pub mod x1safu {
     }
 
     // 7. Burn X1SAFE_PUT → mint X1SAFE_FREE (1:1)
+    // 7. WITHDRAW: burn X1SAFE_PUT → mint X1SAFE (free) 1:1 to user
+    //    User loses right to exit (collateral stays in vault).
     pub fn withdraw(ctx: Context<Withdraw>, put_amount: u64) -> Result<()> {
         require!(put_amount > 0, ErrorCode::InvalidAmount);
 
@@ -328,9 +330,9 @@ pub mod x1safu {
 
         require!(!ctx.accounts.vault.paused, ErrorCode::VaultPaused);
 
-        let vault_ai    = ctx.accounts.vault.to_account_info();
-        let tok_prog_ai = ctx.accounts.token_program.to_account_info();
-        let put_mint_ai = ctx.accounts.put_mint.to_account_info();
+        let vault_ai     = ctx.accounts.vault.to_account_info();
+        let tok_prog_ai  = ctx.accounts.token_program.to_account_info();
+        let put_mint_ai  = ctx.accounts.put_mint.to_account_info();
         let safe_mint_ai = ctx.accounts.safe_mint.to_account_info();
         let user_put_ai  = ctx.accounts.user_put_account.to_account_info();
         let user_safe_ai = ctx.accounts.user_safe_account.to_account_info();
@@ -344,7 +346,7 @@ pub mod x1safu {
             put_amount,
         )?;
 
-        // Mint X1SAFE (free) 1:1
+        // Mint X1SAFE (free) 1:1 directly to user — no staking, user gets free tokens
         let seeds: &[&[u8]] = &[b"vault", &[vault_bump]];
         token::mint_to(
             CpiContext::new_with_signer(tok_prog_ai, MintTo {
@@ -355,50 +357,56 @@ pub mod x1safu {
 
         ctx.accounts.vault.total_x1safe_put_supply = ctx.accounts.vault.total_x1safe_put_supply
             .checked_sub(put_amount).ok_or(ErrorCode::MathOverflow)?;
-        ctx.accounts.vault.total_tvl_usd = ctx.accounts.vault.total_tvl_usd
-            .checked_add(put_amount).ok_or(ErrorCode::MathOverflow)?;
+        // NOTE: total_tvl_usd NOT updated — collateral stays in vault (user lost exit right)
 
         ctx.accounts.user_position.put_balance = ctx.accounts.user_position.put_balance
             .saturating_sub(put_amount);
 
-        msg!("Withdraw: {} X1SAFE_PUT → {} X1SAFE", put_amount, put_amount);
+        msg!("Withdraw: {} X1SAFE_PUT → {} X1SAFE (free, no exit right)", put_amount, put_amount);
         Ok(())
     }
 
-    // 8. Burn X1SAFE_FREE → proportional collateral
+    // 8. EXIT: burn X1SAFE_PUT → return proportional collateral to user
+    //          + mint X1SAFE 1:1 directly into staking reserve pool
     // remaining_accounts: [reserve_0, user_ata_0, reserve_1, user_ata_1, ...]
     pub fn exit<'info>(
         ctx: Context<'_, '_, '_, 'info, Exit<'info>>,
-        safe_burn_amount: u64,
+        put_burn_amount: u64,
     ) -> Result<()> {
-        require!(safe_burn_amount > 0, ErrorCode::InvalidAmount);
+        require!(put_burn_amount > 0, ErrorCode::InvalidAmount);
 
-        let total_free = ctx.accounts.vault.total_tvl_usd;
-        let vault_bump = ctx.accounts.vault.bump;
+        let vault_bump     = ctx.accounts.vault.bump;
+        let stake_pool_bump = ctx.accounts.stake_pool.bump;
+        let total_put      = ctx.accounts.vault.total_x1safe_put_supply;
 
         require!(!ctx.accounts.vault.paused, ErrorCode::VaultPaused);
-        require!(total_free > 0, ErrorCode::InsufficientFunds);
-        require!(safe_burn_amount <= total_free, ErrorCode::InsufficientFunds);
+        require!(total_put > 0, ErrorCode::InsufficientFunds);
+        require!(put_burn_amount <= total_put, ErrorCode::InsufficientFunds);
 
-        let vault_ai     = ctx.accounts.vault.to_account_info();
-        let tok_prog_ai  = ctx.accounts.token_program.to_account_info();
-        let safe_mint_ai = ctx.accounts.safe_mint.to_account_info();
-        let user_safe_ai = ctx.accounts.user_safe_account.to_account_info();
-        let user_ai      = ctx.accounts.user.to_account_info();
+        let vault_ai        = ctx.accounts.vault.to_account_info();
+        let tok_prog_ai     = ctx.accounts.token_program.to_account_info();
+        let put_mint_ai     = ctx.accounts.put_mint.to_account_info();
+        let safe_mint_ai    = ctx.accounts.safe_mint.to_account_info();
+        let user_put_ai     = ctx.accounts.user_put_account.to_account_info();
+        let stake_rsv_ai    = ctx.accounts.stake_reserve.to_account_info();
+        let user_ai         = ctx.accounts.user.to_account_info();
 
-        // Burn X1SAFE
+        // Step 1: Burn X1SAFE_PUT from user
         token::burn(
             CpiContext::new(tok_prog_ai.clone(), Burn {
-                mint: safe_mint_ai, from: user_safe_ai, authority: user_ai,
+                mint: put_mint_ai, from: user_put_ai, authority: user_ai,
             }),
-            safe_burn_amount,
+            put_burn_amount,
         )?;
 
-        ctx.accounts.vault.total_tvl_usd = total_free
-            .checked_sub(safe_burn_amount).ok_or(ErrorCode::MathOverflow)?;
+        // Step 2: Update vault supply
+        ctx.accounts.vault.total_x1safe_put_supply = total_put
+            .checked_sub(put_burn_amount).ok_or(ErrorCode::MathOverflow)?;
+        ctx.accounts.user_position.put_balance = ctx.accounts.user_position.put_balance
+            .saturating_sub(put_burn_amount);
 
-        // Release proportional collateral from each reserve
-        let seeds: &[&[u8]] = &[b"vault", &[vault_bump]];
+        // Step 3: Release proportional collateral from reserves back to user
+        let vault_seeds: &[&[u8]] = &[b"vault", &[vault_bump]];
         let remaining = ctx.remaining_accounts;
         require!(remaining.len() % 2 == 0, ErrorCode::InvalidAmount);
 
@@ -406,7 +414,6 @@ pub mod x1safu {
             let reserve_ai  = &remaining[i * 2];
             let user_ata_ai = &remaining[i * 2 + 1];
 
-            // Read reserve balance from raw data (SPL layout: 64..72 = amount)
             let data = reserve_ai.try_borrow_data()?;
             if data.len() < 72 { continue; }
             let reserve_balance = u64::from_le_bytes(data[64..72].try_into().unwrap());
@@ -414,21 +421,36 @@ pub mod x1safu {
 
             if reserve_balance == 0 { continue; }
 
-            let amount_out = (safe_burn_amount as u128)
+            let amount_out = (put_burn_amount as u128)
                 .checked_mul(reserve_balance as u128).ok_or(ErrorCode::MathOverflow)?
-                .checked_div(total_free as u128).ok_or(ErrorCode::MathOverflow)? as u64;
+                .checked_div(total_put as u128).ok_or(ErrorCode::MathOverflow)? as u64;
 
             if amount_out == 0 { continue; }
 
             token::transfer(
                 CpiContext::new_with_signer(tok_prog_ai.clone(), Transfer {
                     from: reserve_ai.clone(), to: user_ata_ai.clone(), authority: vault_ai.clone(),
-                }, &[seeds]),
+                }, &[vault_seeds]),
                 amount_out,
             )?;
         }
 
-        msg!("Exit: burned {} X1SAFE", safe_burn_amount);
+        // Step 4: Mint X1SAFE (free) 1:1 directly into staking pool reserve
+        //         User earns yield immediately without extra stake tx
+        let vault_seeds_ref: &[&[u8]] = &[b"vault", &[vault_bump]];
+        token::mint_to(
+            CpiContext::new_with_signer(tok_prog_ai.clone(), MintTo {
+                mint: safe_mint_ai, to: stake_rsv_ai, authority: vault_ai,
+            }, &[vault_seeds_ref]),
+            put_burn_amount,
+        )?;
+
+        // Update staking pool undistributed rewards
+        ctx.accounts.stake_pool.undistributed_rewards = ctx.accounts.stake_pool.undistributed_rewards
+            .checked_add(put_burn_amount).ok_or(ErrorCode::MathOverflow)?;
+
+        msg!("Exit: burned {} PUT → returned collateral + minted {} X1SAFE to staking pool",
+            put_burn_amount, put_burn_amount);
         Ok(())
     }
 
@@ -977,13 +999,32 @@ pub struct Exit<'info> {
     #[account(mut, seeds = [b"vault"], bump = vault.bump)]
     pub vault: Box<Account<'info, VaultState>>,
 
+    /// PUT mint — burned during exit
+    #[account(mut, seeds = [b"put_mint"], bump)]
+    pub put_mint: Box<Account<'info, Mint>>,
+
+    /// SAFE (free) mint — minted into staking reserve during exit
     #[account(mut, seeds = [b"safe_mint"], bump)]
     pub safe_mint: Box<Account<'info, Mint>>,
 
-    #[account(mut, token::mint = safe_mint, token::authority = user)]
-    pub user_safe_account: Box<Account<'info, TokenAccount>>,
+    /// User's PUT token account — PUT burned from here
+    #[account(mut, token::mint = put_mint, token::authority = user)]
+    pub user_put_account: Box<Account<'info, TokenAccount>>,
 
-    pub token_program: Program<'info, Token>,
+    /// Staking pool — updated undistributed_rewards after exit
+    #[account(mut, seeds = [b"stake_pool"], bump = stake_pool.bump)]
+    pub stake_pool: Box<Account<'info, StakePool>>,
+
+    /// Staking reserve — receives minted X1SAFE (free) 1:1
+    #[account(mut, seeds = [b"stake_reserve"], bump, token::authority = stake_pool)]
+    pub stake_reserve: Box<Account<'info, TokenAccount>>,
+
+    /// User position — updated put_balance
+    #[account(mut, seeds = [b"position", user.key().as_ref()], bump)]
+    pub user_position: Box<Account<'info, UserPosition>>,
+
+    pub token_program:  Program<'info, Token>,
+    pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
