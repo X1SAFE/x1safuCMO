@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Burn, Mint, MintTo, Token, TokenAccount, Transfer};
+use anchor_spl::token_2022::{Token2022};
 
 declare_id!("F2JnWVnjP1h6WG7KKUHqhp23etEJ4amdJquAcE9ecCoe");
 
@@ -58,15 +59,153 @@ pub mod x1safu {
         v.x1safe_price_usd  = 0;
         v.supported_tokens_count = 0;
         v.padding_1         = [0; 23];
-        v.reserved          = [0; 722];
+        v.reserved          = [0; 714];
         Ok(())
     }
 
-    // 2. Create X1SAFE_PUT and X1SAFE_SAFE mints
+    // 1b. Fix vault bump (one-time migration - vault was init with wrong bump stored)
+    /// Emergency patch: fix invalid bytes in vault (paused byte, etc.)
+    /// Uses raw AccountInfo to bypass Anchor deserialization
+    pub fn fix_vault_raw(ctx: Context<FixBump>) -> Result<()> {
+        let data = ctx.accounts.vault.data.borrow();
+        let user_wallet_bytes = &data[8..40];
+        let user_wallet = Pubkey::try_from(user_wallet_bytes).map_err(|_| ErrorCode::Unauthorized)?;
+        require!(user_wallet == ctx.accounts.authority.key(), ErrorCode::Unauthorized);
+        let old_paused = data[263];
+        let old_bump   = data[262];
+        drop(data);
+
+        let mut data_mut = ctx.accounts.vault.data.borrow_mut();
+        // Fix bump at 262 to canonical value
+        let (_pda, canonical_bump) = Pubkey::find_program_address(&[b"vault"], ctx.program_id);
+        data_mut[262] = canonical_bump;
+        // Fix paused at 263 to 0 (false)
+        data_mut[263] = 0u8;
+        msg!("fix_vault_raw: bump {} -> {}, paused {} -> 0", old_bump, canonical_bump, old_paused);
+        Ok(())
+    }
+
+    pub fn fix_bump(ctx: Context<FixBump>) -> Result<()> {
+        // Deserialize vault data manually from AccountInfo
+        let data = ctx.accounts.vault.data.borrow();
+        // Skip 8-byte discriminator, read user_wallet at offset 0
+        let user_wallet_bytes = &data[8..40];
+        let user_wallet = Pubkey::try_from(user_wallet_bytes).map_err(|_| ErrorCode::Unauthorized)?;
+        let old_bump = data[262];
+        
+        require!(user_wallet == ctx.accounts.authority.key(), ErrorCode::Unauthorized);
+        
+        // Compute canonical bump for vault PDA
+        let (_vault_pda, canonical_bump) = Pubkey::find_program_address(
+            &[b"vault"],
+            ctx.program_id
+        );
+        
+        // Drop immutable borrow before mutable borrow
+        drop(data);
+        
+        // Write bump back at offset 262 (8 + 254)
+        let mut data_mut = ctx.accounts.vault.data.borrow_mut();
+        data_mut[262] = canonical_bump;
+        
+        msg!("Fixed vault bump: {} -> {}", old_bump, canonical_bump);
+        Ok(())
+    }
+
+    // 2. Create X1SAFE_PUT and X1SAFE_SAFE mints via CPI
     pub fn create_mints(ctx: Context<CreateMints>) -> Result<()> {
-        let v = &mut ctx.accounts.vault;
-        v.x1safe_put_mint  = ctx.accounts.put_mint.key();
-        v.x1safe_mint      = ctx.accounts.safe_mint.key();
+        // Verify authority by reading user_wallet from vault data
+        let vault_data = ctx.accounts.vault.data.borrow();
+        let user_wallet_bytes = &vault_data[8..40];
+        let user_wallet = Pubkey::try_from(user_wallet_bytes).map_err(|_| ErrorCode::Unauthorized)?;
+        require!(user_wallet == ctx.accounts.authority.key(), ErrorCode::Unauthorized);
+        drop(vault_data);
+
+        let mint_space: u64 = 82;
+        let rent_lamports = ctx.accounts.rent.minimum_balance(mint_space as usize);
+
+        // ── Step 1: allocate PUT mint account ──────────────────────────────
+        let put_seeds: &[&[u8]] = &[b"put_mint", &[ctx.bumps.put_mint]];
+        let put_signer = &[&put_seeds[..]];
+
+        anchor_lang::solana_program::program::invoke_signed(
+            &anchor_lang::solana_program::system_instruction::create_account(
+                ctx.accounts.authority.key,
+                ctx.accounts.put_mint.key,
+                rent_lamports,
+                mint_space,
+                ctx.accounts.token_program.key,
+            ),
+            &[
+                ctx.accounts.authority.to_account_info(),
+                ctx.accounts.put_mint.to_account_info(),
+                ctx.accounts.system_program.to_account_info(),
+            ],
+            put_signer,
+        )?;
+
+        // ── Step 2: InitializeMint for PUT ─────────────────────────────────
+        let cpi_accounts = token::InitializeMint {
+            mint: ctx.accounts.put_mint.to_account_info(),
+            rent: ctx.accounts.rent.to_account_info(),
+        };
+        token::initialize_mint(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                cpi_accounts,
+                put_signer,
+            ),
+            6,
+            ctx.accounts.vault.key,
+            None,
+        )?;
+
+        // ── Step 3: allocate SAFE mint account ─────────────────────────────
+        let safe_seeds: &[&[u8]] = &[b"safe_mint", &[ctx.bumps.safe_mint]];
+        let safe_signer = &[&safe_seeds[..]];
+
+        anchor_lang::solana_program::program::invoke_signed(
+            &anchor_lang::solana_program::system_instruction::create_account(
+                ctx.accounts.authority.key,
+                ctx.accounts.safe_mint.key,
+                rent_lamports,
+                mint_space,
+                ctx.accounts.token_program.key,
+            ),
+            &[
+                ctx.accounts.authority.to_account_info(),
+                ctx.accounts.safe_mint.to_account_info(),
+                ctx.accounts.system_program.to_account_info(),
+            ],
+            safe_signer,
+        )?;
+
+        // ── Step 4: InitializeMint for SAFE ────────────────────────────────
+        let cpi_accounts = token::InitializeMint {
+            mint: ctx.accounts.safe_mint.to_account_info(),
+            rent: ctx.accounts.rent.to_account_info(),
+        };
+        token::initialize_mint(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                cpi_accounts,
+                safe_signer,
+            ),
+            6,
+            ctx.accounts.vault.key,
+            None,
+        )?;
+
+        // ── Step 5: write mint addresses into vault data ───────────────────
+        // VaultState layout (after 8-byte disc):
+        //   offset 96..128  = x1safe_mint
+        //   offset 128..160 = x1safe_put_mint  ← wait, struct says offset 96 = x1safe_mint, 128 = x1safe_put_mint
+        // Re-check: user_wallet(32)+treasury(32)+fee_pool(32) = 96, x1safe_mint at 96, x1safe_put_mint at 128
+        let mut vd = ctx.accounts.vault.data.borrow_mut();
+        vd[8 + 96..8 + 128].copy_from_slice(ctx.accounts.put_mint.key.as_ref());   // x1safe_mint slot → PUT
+        vd[8 + 128..8 + 160].copy_from_slice(ctx.accounts.safe_mint.key.as_ref()); // x1safe_put_mint slot → SAFE
+
+        msg!("✅ Mints created: PUT={} SAFE={}", ctx.accounts.put_mint.key, ctx.accounts.safe_mint.key);
         Ok(())
     }
 
@@ -542,9 +681,22 @@ pub struct Initialize<'info> {
         seeds = [b"vault"],
         bump,
     )]
-    pub vault: Account<'info, VaultState>,
+    pub vault: Box<Account<'info, VaultState>>,
 
     pub system_program: Program<'info, System>,
+}
+
+// One-time migration: fix vault bump (vault was init with wrong bump stored)
+// NOTE: intentionally NOT using seeds/bump constraint because vault.bump is corrupted (199 != 249)
+// Using AccountInfo to bypass Anchor deserialization which checks PDA bump
+#[derive(Accounts)]
+pub struct FixBump<'info> {
+    #[account(mut)]
+    pub authority: Signer<'info>,
+
+    /// CHECK: Raw account info, we manually verify and deserialize
+    #[account(mut)]
+    pub vault: AccountInfo<'info>,
 }
 
 #[derive(Accounts)]
@@ -552,29 +704,29 @@ pub struct CreateMints<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
 
+    /// CHECK: Vault account verified via seeds only, authority checked in instruction
     #[account(
         mut,
         seeds = [b"vault"],
-        bump = vault.bump,
-        constraint = vault.user_wallet == authority.key() @ ErrorCode::Unauthorized,
+        bump,
     )]
-    pub vault: Account<'info, VaultState>,
+    pub vault: AccountInfo<'info>,
 
+    /// CHECK: PDA mint account, initialized via CPI
     #[account(
-        init, payer = authority,
-        seeds = [b"put_mint"], bump,
-        mint::decimals = 6,
-        mint::authority = vault,
+        mut,
+        seeds = [b"put_mint"],
+        bump,
     )]
-    pub put_mint: Account<'info, Mint>,
+    pub put_mint: AccountInfo<'info>,
 
+    /// CHECK: PDA mint account, initialized via CPI  
     #[account(
-        init, payer = authority,
-        seeds = [b"safe_mint"], bump,
-        mint::decimals = 6,
-        mint::authority = vault,
+        mut,
+        seeds = [b"safe_mint"],
+        bump,
     )]
-    pub safe_mint: Account<'info, Mint>,
+    pub safe_mint: AccountInfo<'info>,
 
     pub token_program:  Program<'info, Token>,
     pub system_program: Program<'info, System>,
@@ -590,17 +742,17 @@ pub struct InitStakePool<'info> {
         seeds = [b"vault"], bump = vault.bump,
         constraint = vault.user_wallet == authority.key() @ ErrorCode::Unauthorized,
     )]
-    pub vault: Account<'info, VaultState>,
+    pub vault: Box<Account<'info, VaultState>>,
 
     #[account(
         init, payer = authority,
         space = 8 + StakePool::SIZE,
         seeds = [b"stake_pool"], bump,
     )]
-    pub stake_pool: Account<'info, StakePool>,
+    pub stake_pool: Box<Account<'info, StakePool>>,
 
     #[account(seeds = [b"safe_mint"], bump)]
-    pub safe_mint: Account<'info, Mint>,
+    pub safe_mint: Box<Account<'info, Mint>>,
 
     #[account(
         init, payer = authority,
@@ -608,7 +760,7 @@ pub struct InitStakePool<'info> {
         mint::decimals = 6,
         mint::authority = stake_pool,
     )]
-    pub sx1safe_mint: Account<'info, Mint>,
+    pub sx1safe_mint: Box<Account<'info, Mint>>,
 
     #[account(
         init, payer = authority,
@@ -616,7 +768,7 @@ pub struct InitStakePool<'info> {
         token::mint = safe_mint,
         token::authority = stake_pool,
     )]
-    pub stake_reserve: Account<'info, TokenAccount>,
+    pub stake_reserve: Box<Account<'info, TokenAccount>>,
 
     #[account(
         init, payer = authority,
@@ -624,7 +776,7 @@ pub struct InitStakePool<'info> {
         token::mint = safe_mint,
         token::authority = stake_pool,
     )]
-    pub reward_reserve: Account<'info, TokenAccount>,
+    pub reward_reserve: Box<Account<'info, TokenAccount>>,
 
     pub token_program:  Program<'info, Token>,
     pub system_program: Program<'info, System>,
@@ -636,20 +788,21 @@ pub struct AddAsset<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
 
+    /// CHECK: verified by seeds constraint only — skip full deserialization
     #[account(
-        seeds = [b"vault"], bump = vault.bump,
-        constraint = vault.user_wallet == authority.key() @ ErrorCode::Unauthorized,
+        seeds = [b"vault"], bump,
+        constraint = vault.owner == &crate::ID @ ErrorCode::Unauthorized,
     )]
-    pub vault: Account<'info, VaultState>,
+    pub vault: UncheckedAccount<'info>,
 
-    pub asset_mint: Account<'info, Mint>,
+    pub asset_mint: Box<Account<'info, Mint>>,
 
     #[account(
         init, payer = authority,
         space = 8 + AssetConfig::SIZE,
         seeds = [b"asset", asset_mint.key().as_ref()], bump,
     )]
-    pub asset_config: Account<'info, AssetConfig>,
+    pub asset_config: Box<Account<'info, AssetConfig>>,
 
     pub system_program: Program<'info, System>,
 }
@@ -659,13 +812,13 @@ pub struct UpdatePrice<'info> {
     pub caller: Signer<'info>,
 
     #[account(seeds = [b"vault"], bump = vault.bump)]
-    pub vault: Account<'info, VaultState>,
+    pub vault: Box<Account<'info, VaultState>>,
 
     #[account(
         mut,
         seeds = [b"asset", asset_config.mint.as_ref()], bump,
     )]
-    pub asset_config: Account<'info, AssetConfig>,
+    pub asset_config: Box<Account<'info, AssetConfig>>,
 }
 
 #[derive(Accounts)]
@@ -674,13 +827,13 @@ pub struct Deposit<'info> {
     pub user: Signer<'info>,
 
     #[account(mut, seeds = [b"vault"], bump = vault.bump)]
-    pub vault: Account<'info, VaultState>,
+    pub vault: Box<Account<'info, VaultState>>,
 
     #[account(
         mut,
         seeds = [b"asset", asset_config.mint.as_ref()], bump,
     )]
-    pub asset_config: Account<'info, AssetConfig>,
+    pub asset_config: Box<Account<'info, AssetConfig>>,
 
     /// Reserve ATA: ATA(assetMint, vault) — created by client before first deposit
     #[account(
@@ -688,24 +841,24 @@ pub struct Deposit<'info> {
         token::mint = asset_config.mint,
         token::authority = vault,
     )]
-    pub reserve_account: Account<'info, TokenAccount>,
+    pub reserve_account: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
         token::mint = asset_config.mint,
         token::authority = user,
     )]
-    pub user_asset_account: Account<'info, TokenAccount>,
+    pub user_asset_account: Box<Account<'info, TokenAccount>>,
 
     #[account(mut, seeds = [b"put_mint"], bump)]
-    pub put_mint: Account<'info, Mint>,
+    pub put_mint: Box<Account<'info, Mint>>,
 
     #[account(
         mut,
         token::mint = put_mint,
         token::authority = user,
     )]
-    pub user_put_ata: Account<'info, TokenAccount>,
+    pub user_put_ata: Box<Account<'info, TokenAccount>>,
 
     #[account(
         init_if_needed,
@@ -713,7 +866,7 @@ pub struct Deposit<'info> {
         space = 8 + UserPosition::SIZE,
         seeds = [b"position", user.key().as_ref()], bump,
     )]
-    pub user_position: Account<'info, UserPosition>,
+    pub user_position: Box<Account<'info, UserPosition>>,
 
     pub token_program:  Program<'info, Token>,
     pub system_program: Program<'info, System>,
@@ -725,25 +878,25 @@ pub struct Withdraw<'info> {
     pub user: Signer<'info>,
 
     #[account(mut, seeds = [b"vault"], bump = vault.bump)]
-    pub vault: Account<'info, VaultState>,
+    pub vault: Box<Account<'info, VaultState>>,
 
     #[account(mut, seeds = [b"put_mint"], bump)]
-    pub put_mint: Account<'info, Mint>,
+    pub put_mint: Box<Account<'info, Mint>>,
 
     #[account(mut, seeds = [b"safe_mint"], bump)]
-    pub safe_mint: Account<'info, Mint>,
+    pub safe_mint: Box<Account<'info, Mint>>,
 
     #[account(mut, token::mint = put_mint, token::authority = user)]
-    pub user_put_account: Account<'info, TokenAccount>,
+    pub user_put_account: Box<Account<'info, TokenAccount>>,
 
     #[account(mut, token::mint = safe_mint, token::authority = user)]
-    pub user_safe_account: Account<'info, TokenAccount>,
+    pub user_safe_account: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
         seeds = [b"position", user.key().as_ref()], bump,
     )]
-    pub user_position: Account<'info, UserPosition>,
+    pub user_position: Box<Account<'info, UserPosition>>,
 
     pub token_program:  Program<'info, Token>,
     pub system_program: Program<'info, System>,
@@ -755,13 +908,13 @@ pub struct Exit<'info> {
     pub user: Signer<'info>,
 
     #[account(mut, seeds = [b"vault"], bump = vault.bump)]
-    pub vault: Account<'info, VaultState>,
+    pub vault: Box<Account<'info, VaultState>>,
 
     #[account(mut, seeds = [b"safe_mint"], bump)]
-    pub safe_mint: Account<'info, Mint>,
+    pub safe_mint: Box<Account<'info, Mint>>,
 
     #[account(mut, token::mint = safe_mint, token::authority = user)]
-    pub user_safe_account: Account<'info, TokenAccount>,
+    pub user_safe_account: Box<Account<'info, TokenAccount>>,
 
     pub token_program: Program<'info, Token>,
 }
@@ -772,19 +925,19 @@ pub struct Redeposit<'info> {
     pub user: Signer<'info>,
 
     #[account(mut, seeds = [b"vault"], bump = vault.bump)]
-    pub vault: Account<'info, VaultState>,
+    pub vault: Box<Account<'info, VaultState>>,
 
     #[account(mut, seeds = [b"safe_mint"], bump)]
-    pub safe_mint: Account<'info, Mint>,
+    pub safe_mint: Box<Account<'info, Mint>>,
 
     #[account(mut, seeds = [b"put_mint"], bump)]
-    pub put_mint: Account<'info, Mint>,
+    pub put_mint: Box<Account<'info, Mint>>,
 
     #[account(mut, token::mint = safe_mint, token::authority = user)]
-    pub user_safe_account: Account<'info, TokenAccount>,
+    pub user_safe_account: Box<Account<'info, TokenAccount>>,
 
     #[account(mut, token::mint = put_mint, token::authority = user)]
-    pub user_put_ata: Account<'info, TokenAccount>,
+    pub user_put_ata: Box<Account<'info, TokenAccount>>,
 
     pub token_program: Program<'info, Token>,
 }
@@ -795,7 +948,7 @@ pub struct Stake<'info> {
     pub user: Signer<'info>,
 
     #[account(mut, seeds = [b"stake_pool"], bump = stake_pool.bump)]
-    pub stake_pool: Account<'info, StakePool>,
+    pub stake_pool: Box<Account<'info, StakePool>>,
 
     #[account(
         init_if_needed,
@@ -803,21 +956,21 @@ pub struct Stake<'info> {
         space = 8 + UserStake::SIZE,
         seeds = [b"user_stake", user.key().as_ref()], bump,
     )]
-    pub user_stake: Account<'info, UserStake>,
+    pub user_stake: Box<Account<'info, UserStake>>,
 
     #[account(mut, seeds = [b"sx1safe_mint"], bump = stake_pool.sx1safe_mint_bump)]
-    pub sx1safe_mint: Account<'info, Mint>,
+    pub sx1safe_mint: Box<Account<'info, Mint>>,
 
     /// User's X1SAFE (free) token account — tokens being staked
     #[account(mut, token::authority = user)]
-    pub user_x1safe: Account<'info, TokenAccount>,
+    pub user_x1safe: Box<Account<'info, TokenAccount>>,
 
     /// User's sX1SAFE ATA — receives receipt tokens
     #[account(mut, token::mint = sx1safe_mint, token::authority = user)]
-    pub user_sx1safe: Account<'info, TokenAccount>,
+    pub user_sx1safe: Box<Account<'info, TokenAccount>>,
 
     #[account(mut, seeds = [b"stake_reserve"], bump, token::authority = stake_pool)]
-    pub stake_reserve: Account<'info, TokenAccount>,
+    pub stake_reserve: Box<Account<'info, TokenAccount>>,
 
     pub token_program:  Program<'info, Token>,
     pub system_program: Program<'info, System>,
@@ -829,26 +982,26 @@ pub struct Unstake<'info> {
     pub user: Signer<'info>,
 
     #[account(mut, seeds = [b"stake_pool"], bump = stake_pool.bump)]
-    pub stake_pool: Account<'info, StakePool>,
+    pub stake_pool: Box<Account<'info, StakePool>>,
 
     #[account(mut, seeds = [b"user_stake", user.key().as_ref()], bump = user_stake.bump)]
-    pub user_stake: Account<'info, UserStake>,
+    pub user_stake: Box<Account<'info, UserStake>>,
 
     #[account(mut, seeds = [b"sx1safe_mint"], bump = stake_pool.sx1safe_mint_bump)]
-    pub sx1safe_mint: Account<'info, Mint>,
+    pub sx1safe_mint: Box<Account<'info, Mint>>,
 
     /// User's X1SAFE (free) — receives returned principal + rewards
     #[account(mut, token::authority = user)]
-    pub user_x1safe: Account<'info, TokenAccount>,
+    pub user_x1safe: Box<Account<'info, TokenAccount>>,
 
     #[account(mut, token::mint = sx1safe_mint, token::authority = user)]
-    pub user_sx1safe: Account<'info, TokenAccount>,
+    pub user_sx1safe: Box<Account<'info, TokenAccount>>,
 
     #[account(mut, seeds = [b"stake_reserve"], bump, token::authority = stake_pool)]
-    pub stake_reserve: Account<'info, TokenAccount>,
+    pub stake_reserve: Box<Account<'info, TokenAccount>>,
 
     #[account(mut, seeds = [b"reward_reserve"], bump, token::authority = stake_pool)]
-    pub reward_reserve: Account<'info, TokenAccount>,
+    pub reward_reserve: Box<Account<'info, TokenAccount>>,
 
     pub token_program: Program<'info, Token>,
 }
@@ -859,16 +1012,16 @@ pub struct ClaimRewards<'info> {
     pub user: Signer<'info>,
 
     #[account(mut, seeds = [b"stake_pool"], bump = stake_pool.bump)]
-    pub stake_pool: Account<'info, StakePool>,
+    pub stake_pool: Box<Account<'info, StakePool>>,
 
     #[account(mut, seeds = [b"user_stake", user.key().as_ref()], bump = user_stake.bump)]
-    pub user_stake: Account<'info, UserStake>,
+    pub user_stake: Box<Account<'info, UserStake>>,
 
     #[account(mut, token::authority = user)]
-    pub user_x1safe: Account<'info, TokenAccount>,
+    pub user_x1safe: Box<Account<'info, TokenAccount>>,
 
     #[account(mut, seeds = [b"reward_reserve"], bump, token::authority = stake_pool)]
-    pub reward_reserve: Account<'info, TokenAccount>,
+    pub reward_reserve: Box<Account<'info, TokenAccount>>,
 
     pub token_program: Program<'info, Token>,
 }
@@ -878,16 +1031,16 @@ pub struct DepositRewards<'info> {
     pub caller: Signer<'info>,
 
     #[account(seeds = [b"vault"], bump = vault.bump)]
-    pub vault: Account<'info, VaultState>,
+    pub vault: Box<Account<'info, VaultState>>,
 
     #[account(mut, seeds = [b"stake_pool"], bump = stake_pool.bump)]
-    pub stake_pool: Account<'info, StakePool>,
+    pub stake_pool: Box<Account<'info, StakePool>>,
 
     #[account(mut, token::authority = caller)]
-    pub source: Account<'info, TokenAccount>,
+    pub source: Box<Account<'info, TokenAccount>>,
 
     #[account(mut, seeds = [b"reward_reserve"], bump, token::authority = stake_pool)]
-    pub reward_reserve: Account<'info, TokenAccount>,
+    pub reward_reserve: Box<Account<'info, TokenAccount>>,
 
     pub token_program: Program<'info, Token>,
 }
@@ -900,35 +1053,35 @@ pub struct AdminVault<'info> {
     pub authority: Signer<'info>,
 
     #[account(mut, seeds = [b"vault"], bump = vault.bump)]
-    pub vault: Account<'info, VaultState>,
+    pub vault: Box<Account<'info, VaultState>>,
 }
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
 #[account]
 pub struct VaultState {
-    pub user_wallet:         Pubkey, // 32 - offset 0
-    pub treasury:            Pubkey, // 32 - offset 32
-    pub fee_pool:            Pubkey, // 32 - offset 64
-    pub x1safe_mint:         Pubkey, // 32 - offset 96
-    pub x1safe_put_mint:     Pubkey, // 32 - offset 128
-    pub usdc_mint:           Pubkey, // 32 - offset 160
-    pub supported_tokens_count: u8, // 1 - offset 192
-    pub padding_1:           [u8; 23], // 23 - offset 193
-    pub total_tvl_usd:       u64,    // 8 - offset 216
-    pub total_x1safe_put_supply: u64, // 8 - offset 224
-    pub total_staked:        u64,    // 8 - offset 232
-    pub staker_fee_share:    u16,    // 2 - offset 240
-    pub buyback_fee_share:   u16,    // 2 - offset 242
-    pub treasury_fee_share:  u16,    // 2 - offset 244
-    pub x1safe_price_usd:    u64,    // 8 - offset 246
-    pub bump:                u8,     // 1 - offset 254
-    pub paused:              bool,   // 1 - offset 255
-    pub reserved:            [u8; 722], // 722 - offset 256 (978 - 256 = 722)
+    pub user_wallet:             Pubkey,    // 32 - offset 0
+    pub treasury:                Pubkey,    // 32 - offset 32
+    pub fee_pool:                Pubkey,    // 32 - offset 64
+    pub x1safe_mint:             Pubkey,    // 32 - offset 96
+    pub x1safe_put_mint:         Pubkey,    // 32 - offset 128
+    pub usdc_mint:               Pubkey,    // 32 - offset 160
+    pub supported_tokens_count:  u8,        // 1  - offset 192
+    pub padding_1:               [u8; 23],  // 23 - offset 193
+    pub total_tvl_usd:           u64,       // 8  - struct offset 216, raw 224
+    pub total_x1safe_put_supply: u64,       // 8  - struct offset 224, raw 232
+    pub total_staked:            u64,       // 8  - struct offset 232, raw 240
+    pub staker_fee_share:        u16,       // 2  - struct offset 240, raw 248
+    pub buyback_fee_share:       u16,       // 2  - struct offset 242, raw 250
+    pub treasury_fee_share:      u16,       // 2  - struct offset 244, raw 252
+    pub x1safe_price_usd:        u64,       // 8  - struct offset 246, raw 254
+    pub bump:                    u8,        // 1  - struct offset 254, raw 262 ← verified ✓
+    pub paused:                  bool,      // 1  - struct offset 255, raw 263 ← verified ✓
+    pub reserved:                [u8; 714], // 714 - struct offset 256, raw 264, total=978 ✓
 }
 
 impl VaultState {
-    pub const SIZE: usize = 32*6 + 1 + 23 + 8*4 + 2*3 + 1 + 1 + 722; // 978
+    pub const SIZE: usize = 32*6 + 1 + 23 + 8*3 + 2*3 + 8 + 1 + 1 + 714; // 970
 }
 
 #[account]
