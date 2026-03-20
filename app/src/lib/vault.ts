@@ -101,9 +101,21 @@ export const getUserPositionPDA = (user: PublicKey) =>
     PROGRAM_ID
   )[0]
 
-// Reserve ATA: ATA(assetMint, vaultPDA)
-export const getReserveAccount = (mint: PublicKey): PublicKey =>
-  getAssociatedTokenAddressSync(mint, getVaultPDA(), true)
+// On-chain verified token programs per mint (2026-03-20):
+// USDC.X, XNT, XEN → Token classic (TokenkegQ)
+// XNM              → Token-2022    (TokenzQdB)
+export const MINT_TOKEN_PROGRAM_MAP: Record<string, PublicKey> = {
+  [MINTS.USDCX.toBase58()]: TOKEN_PROGRAM_ID,
+  [MINTS.XNT.toBase58()]:   TOKEN_PROGRAM_ID,
+  [MINTS.XEN.toBase58()]:   TOKEN_PROGRAM_ID,
+  [MINTS.XNM.toBase58()]:   TOKEN_2022_PROGRAM_ID,
+}
+
+// Reserve ATA: ATA(assetMint, vaultPDA) — uses correct token program per mint
+export const getReserveAccount = (mint: PublicKey): PublicKey => {
+  const tokenProgram = MINT_TOKEN_PROGRAM_MAP[mint.toBase58()] ?? TOKEN_PROGRAM_ID
+  return getAssociatedTokenAddressSync(mint, getVaultPDA(), true, tokenProgram)
+}
 
 // ── IDL ───────────────────────────────────────────────────────────────────────
 // IDL matching on-chain program F2JnWVnjP1h6WG7KKUHqhp23etEJ4amdJquAcE9ecCoe
@@ -2128,30 +2140,25 @@ export async function fetchUserStake(connection: Connection, user: PublicKey) {
 }
 
 // ── Token balance ─────────────────────────────────────────────────────────────
+
 export async function getTokenBalance(
   connection: Connection,
   owner: PublicKey,
   mint: PublicKey
 ): Promise<number> {
+  // Use the known program for this mint (defaults to Token classic if unknown)
+  const tokenProgram = MINT_TOKEN_PROGRAM_MAP[mint.toBase58()] ?? TOKEN_PROGRAM_ID
   try {
-    // Try Token-2022 first (X1 Testnet uses Token-2022)
-    const ata2022  = getAssociatedTokenAddressSync(mint, owner, false, TOKEN_2022_PROGRAM_ID)
-    const info2022 = await connection.getTokenAccountBalance(ata2022)
-    return info2022.value.uiAmount ?? 0
+    const ata  = getAssociatedTokenAddressSync(mint, owner, false, tokenProgram)
+    const info = await connection.getTokenAccountBalance(ata)
+    return info.value.uiAmount ?? 0
   } catch {
-    // Fallback: try SPL Token program
+    // Fallback: scan all token accounts for this mint (handles non-ATA accounts)
     try {
-      const ata  = getAssociatedTokenAddressSync(mint, owner, false, TOKEN_PROGRAM_ID)
-      const info = await connection.getTokenAccountBalance(ata)
-      return info.value.uiAmount ?? 0
-    } catch {
-      // Final fallback: scan all token accounts for this mint
-      try {
-        const accounts = await connection.getParsedTokenAccountsByOwner(owner, { mint }, 'confirmed')
-        if (!accounts.value.length) return 0
-        return accounts.value.reduce((sum, a) => sum + (a.account.data.parsed?.info?.tokenAmount?.uiAmount ?? 0), 0)
-      } catch { return 0 }
-    }
+      const accounts = await connection.getParsedTokenAccountsByOwner(owner, { mint }, 'confirmed')
+      if (!accounts.value.length) return 0
+      return accounts.value.reduce((sum, a) => sum + (a.account.data.parsed?.info?.tokenAmount?.uiAmount ?? 0), 0)
+    } catch { return 0 }
   }
 }
 
