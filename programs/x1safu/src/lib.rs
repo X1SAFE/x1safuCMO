@@ -484,10 +484,21 @@ pub mod x1safu {
         let _ = pool_sx_bump;
 
         if ctx.accounts.user_stake.user == Pubkey::default() {
-            ctx.accounts.user_stake.user = ctx.accounts.user.key();
-            ctx.accounts.user_stake.bump = ctx.bumps.user_stake;
+            // ── First stake: initialise vesting clock ────────────────────────
+            ctx.accounts.user_stake.user             = ctx.accounts.user.key();
+            ctx.accounts.user_stake.bump             = ctx.bumps.user_stake;
+            ctx.accounts.user_stake.stake_start_ts   = Clock::get()?.unix_timestamp;
+            ctx.accounts.user_stake.tranches_claimed = 0;
+            ctx.accounts.user_stake.total_vesting_rewards = 0;
         }
-        ctx.accounts.user_stake.rewards_pending       = earned;
+        // Accrue any pending rewards into vesting pool before adding new stake
+        if earned > 0 {
+            ctx.accounts.user_stake.total_vesting_rewards = ctx.accounts.user_stake
+                .total_vesting_rewards
+                .checked_add(earned)
+                .ok_or(ErrorCode::MathOverflow)?;
+        }
+        ctx.accounts.user_stake.rewards_pending       = 0;
         ctx.accounts.user_stake.reward_per_token_paid = ctx.accounts.stake_pool.reward_per_token_stored;
         ctx.accounts.user_stake.staked_amount = ctx.accounts.user_stake.staked_amount
             .checked_add(amount).ok_or(ErrorCode::MathOverflow)?;
@@ -596,23 +607,64 @@ pub mod x1safu {
     pub fn claim_rewards(ctx: Context<ClaimRewards>) -> Result<()> {
         update_reward_per_token(&mut ctx.accounts.stake_pool)?;
 
-        let earned    = calc_earned(&ctx.accounts.user_stake, &ctx.accounts.stake_pool)?;
+        // ── Accrue any newly earned rewards into vesting pool ────────────────
+        let newly_earned = calc_earned(&ctx.accounts.user_stake, &ctx.accounts.stake_pool)?;
+        if newly_earned > 0 {
+            ctx.accounts.user_stake.rewards_pending       = 0;
+            ctx.accounts.user_stake.reward_per_token_paid = ctx.accounts.stake_pool.reward_per_token_stored;
+            ctx.accounts.user_stake.total_vesting_rewards = ctx.accounts.user_stake
+                .total_vesting_rewards
+                .checked_add(newly_earned)
+                .ok_or(ErrorCode::MathOverflow)?;
+        }
+
+        // ── Calculate how many tranches are unlocked ─────────────────────────
+        let now = Clock::get()?.unix_timestamp;
+        let elapsed_days = now
+            .saturating_sub(ctx.accounts.user_stake.stake_start_ts)
+            .checked_div(UserStake::SECS_PER_DAY)
+            .unwrap_or(0);
+
+        // tranches_unlocked = floor(elapsed_days / 7), capped at 6
+        let tranches_unlocked = ((elapsed_days / UserStake::TRANCHE_DAYS) as u8)
+            .min(UserStake::TOTAL_TRANCHES);
+        let tranches_remaining = tranches_unlocked
+            .saturating_sub(ctx.accounts.user_stake.tranches_claimed);
+
+        require!(tranches_remaining > 0, ErrorCode::VestingLocked);
+
+        // ── Compute claimable amount ──────────────────────────────────────────
+        // tranche_size = total_vesting_rewards / 6  (integer, rounds down)
+        let total = ctx.accounts.user_stake.total_vesting_rewards;
+        let tranche_size = total.checked_div(UserStake::TOTAL_TRANCHES as u64)
+            .ok_or(ErrorCode::MathOverflow)?;
+
+        // Last tranche gets any remainder (handles rounding)
+        let claimable = if (ctx.accounts.user_stake.tranches_claimed as u8)
+            .saturating_add(tranches_remaining) >= UserStake::TOTAL_TRANCHES
+        {
+            // Final claim: pay out everything remaining
+            let already_paid = tranche_size
+                .checked_mul(ctx.accounts.user_stake.tranches_claimed as u64)
+                .ok_or(ErrorCode::MathOverflow)?;
+            total.saturating_sub(already_paid)
+        } else {
+            tranche_size
+                .checked_mul(tranches_remaining as u64)
+                .ok_or(ErrorCode::MathOverflow)?
+        };
+
+        require!(claimable > 0, ErrorCode::InsufficientFunds);
+
+        // ── Transfer claimable X1SAFE from reward reserve ────────────────────
         let pool_bump = ctx.accounts.stake_pool.bump;
-
-        require!(earned > 0, ErrorCode::InsufficientFunds);
-
-        ctx.accounts.user_stake.rewards_pending       = 0;
-        ctx.accounts.user_stake.reward_per_token_paid = ctx.accounts.stake_pool.reward_per_token_stored;
-        ctx.accounts.user_stake.rewards_claimed = ctx.accounts.user_stake.rewards_claimed
-            .checked_add(earned).ok_or(ErrorCode::MathOverflow)?;
-
         let pool_ai       = ctx.accounts.stake_pool.to_account_info();
         let tok_prog_ai   = ctx.accounts.token_program.to_account_info();
         let reward_res_ai = ctx.accounts.reward_reserve.to_account_info();
         let user_xs_ai    = ctx.accounts.user_x1safe.to_account_info();
 
         let reserve_bal = ctx.accounts.reward_reserve.amount;
-        let actual_pay  = earned.min(reserve_bal);
+        let actual_pay  = claimable.min(reserve_bal);
         require!(actual_pay > 0, ErrorCode::InsufficientFunds);
 
         let seeds: &[&[u8]] = &[b"stake_pool", &[pool_bump]];
@@ -623,7 +675,22 @@ pub mod x1safu {
             actual_pay,
         )?;
 
-        msg!("Claimed {} X1SAFE rewards", actual_pay);
+        // ── Update state ──────────────────────────────────────────────────────
+        ctx.accounts.user_stake.tranches_claimed = ctx.accounts.user_stake
+            .tranches_claimed
+            .saturating_add(tranches_remaining);
+        ctx.accounts.user_stake.rewards_claimed = ctx.accounts.user_stake
+            .rewards_claimed
+            .checked_add(actual_pay)
+            .ok_or(ErrorCode::MathOverflow)?;
+
+        msg!(
+            "Claimed {} X1SAFE | tranches {}/{} | day {}",
+            actual_pay,
+            ctx.accounts.user_stake.tranches_claimed,
+            UserStake::TOTAL_TRANCHES,
+            elapsed_days
+        );
         Ok(())
     }
 
@@ -1132,10 +1199,17 @@ pub struct UserStake {
     pub reward_per_token_paid: u128,   // 16
     pub rewards_pending:       u64,    // 8
     pub rewards_claimed:       u64,    // 8
+    // ── Vesting: 6 weekly tranches ──────────────────────────────────────────
+    pub stake_start_ts:        i64,    // 8  — unix timestamp when staking began
+    pub tranches_claimed:      u8,     // 1  — how many of 6 tranches already claimed
+    pub total_vesting_rewards: u64,    // 8  — total rewards locked into vesting schedule
 }
 
 impl UserStake {
-    pub const SIZE: usize = 32 + 1 + 8 + 16 + 8 + 8; // 73
+    pub const SIZE: usize = 32 + 1 + 8 + 16 + 8 + 8 + 8 + 1 + 8; // 90
+    pub const TOTAL_TRANCHES: u8  = 6;
+    pub const TRANCHE_DAYS:   i64 = 7;
+    pub const SECS_PER_DAY:   i64 = 86_400;
 }
 
 // ── Errors ────────────────────────────────────────────────────────────────────
@@ -1156,4 +1230,6 @@ pub enum ErrorCode {
     InvalidOraclePrice,
     #[msg("Asset uses fixed price")]
     FixedPriceAsset,
+    #[msg("Rewards still vesting — no tranche unlocked yet")]
+    VestingLocked,
 }
