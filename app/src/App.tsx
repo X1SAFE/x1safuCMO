@@ -14,23 +14,25 @@ import { WalletReadyState }      from '@solana/wallet-adapter-base'
 import '@solana/wallet-adapter-react-ui/styles.css'
 import './App.css'
 
-import { Dashboard }  from './components/Dashboard'
-import { Deposit }    from './components/Deposit'
-import { Withdraw }   from './components/Withdraw'
-import { Stake }      from './components/Stake'
+import { Dashboard }   from './components/Dashboard'
+import { Deposit }     from './components/Deposit'
+import { Withdraw }    from './components/Withdraw'
+import { Stake }       from './components/Stake'
+import { Whitepaper }  from './components/Whitepaper'
 import { RPC_URL, IS_TESTNET } from './lib/vault'
 
 declare global {
   interface Window { backpack?: any; xnft?: any }
 }
 
-type Tab = 'dashboard' | 'deposit' | 'withdraw' | 'stake'
+type Tab = 'dashboard' | 'deposit' | 'withdraw' | 'stake' | 'whitepaper'
 
 const TABS: { key: Tab; label: string; icon: string }[] = [
-  { key: 'dashboard', label: 'Overview', icon: '◈' },
-  { key: 'deposit',   label: 'Deposit',  icon: '↓' },
-  { key: 'withdraw',  label: 'Withdraw', icon: '↑' },
-  { key: 'stake',     label: 'Stake',   icon: '⬡' },
+  { key: 'dashboard',  label: 'Overview',    icon: '◈' },
+  { key: 'deposit',    label: 'Deposit',     icon: '↓' },
+  { key: 'withdraw',   label: 'Withdraw',    icon: '↑' },
+  { key: 'stake',      label: 'Stake',       icon: '⬡' },
+  { key: 'whitepaper', label: 'White Paper', icon: '📄' },
 ]
 
 const SITE_URL = 'https://x1safu-cmo.vercel.app'
@@ -381,10 +383,11 @@ function App() {
             <span>Connect your wallet using the button in the top-right to get started.</span>
           </div>
         )}
-        {tab === 'dashboard' && <Dashboard />}
-        {tab === 'deposit'   && <Deposit />}
-        {tab === 'withdraw'  && <Withdraw />}
-        {tab === 'stake'     && <Stake />}
+        {tab === 'dashboard'  && <Dashboard />}
+        {tab === 'deposit'    && <Deposit />}
+        {tab === 'withdraw'   && <Withdraw />}
+        {tab === 'stake'      && <Stake />}
+        {tab === 'whitepaper' && <Whitepaper />}
       </main>
     </div>
   )
