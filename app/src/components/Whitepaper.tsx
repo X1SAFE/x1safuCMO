@@ -151,7 +151,7 @@ export function Whitepaper() {
           body: (
             <>
               <p style={p}>
-                X1SAFE-PUT holders can stake PUT to earn protocol yield. Stakers receive <strong>sX1SAFE</strong> receipt tokens tracking their proportional share of the reward pool.
+                X1SAFE-PUT holders can stake PUT to earn protocol yield, paid out in <strong>X1SAFE tokens</strong>. Stakers receive <strong>sX1SAFE</strong> receipt tokens tracking their proportional share of the reward pool.
               </p>
               <table style={tbl}>
                 <thead>
@@ -170,6 +170,89 @@ export function Whitepaper() {
                   ))}
                 </tbody>
               </table>
+            </>
+          ),
+        },
+        {
+          num: '6.1', title: 'X1SAFE Reward Vesting — Linear Claim Schedule',
+          body: (
+            <>
+              <p style={p}>
+                Staking rewards are <strong>not instantly claimable at 100%</strong>. X1SAFE rewards vest <strong>linearly over 30 days</strong> to incentivize long-term staking and prevent mercenary yield farming.
+              </p>
+
+              {/* Vesting progress visual */}
+              <div style={{ margin: '16px 0', padding: '18px 20px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)' }}>
+                <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 14 }}>
+                  Vesting Timeline — 30 Day Linear
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {[
+                    { day: 'Day 0',  pct: 0,   label: 'Stake begins' },
+                    { day: 'Day 7',  pct: 23,  label: '~23% claimable' },
+                    { day: 'Day 15', pct: 50,  label: '50% claimable' },
+                    { day: 'Day 22', pct: 73,  label: '~73% claimable' },
+                    { day: 'Day 30', pct: 100, label: '100% ✅ Full vesting' },
+                  ].map(({ day, pct, label }) => (
+                    <div key={day} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div style={{ width: 44, fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-3)', flexShrink: 0 }}>{day}</div>
+                      <div style={{ flex: 1, height: 8, background: 'rgba(255,255,255,0.06)', borderRadius: 99, overflow: 'hidden' }}>
+                        <div style={{
+                          height: '100%',
+                          width: `${pct}%`,
+                          background: pct === 100
+                            ? 'var(--success)'
+                            : `linear-gradient(90deg, var(--success) 0%, rgba(34,197,94,0.5) 100%)`,
+                          borderRadius: 99,
+                          transition: 'width 0.3s',
+                        }}/>
+                      </div>
+                      <div style={{ width: 36, fontSize: '0.72rem', fontWeight: 800, color: pct === 100 ? 'var(--success)' : 'var(--text-2)', flexShrink: 0, textAlign: 'right' }}>{pct}%</div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-3)', flexShrink: 0, minWidth: 120 }}>{label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Formula */}
+              <div style={codeBlock}>
+                <div style={codeLine}><span style={{ color: '#94a3b8' }}>// Vesting formula</span></div>
+                <div style={codeLine}><span style={{ color: '#60a5fa' }}>vested_pct</span>  = min(elapsed_seconds / <span style={{ color: 'var(--success)' }}>2_592_000</span>, 1.0)  <span style={{ color: '#94a3b8' }}>// 30 days</span></div>
+                <div style={codeLine}><span style={{ color: '#60a5fa' }}>claimable</span>   = total_earned × vested_pct</div>
+                <div style={codeLine}><span style={{ color: '#60a5fa' }}>locked</span>      = total_earned − claimable</div>
+              </div>
+
+              {/* Example */}
+              <div style={{ ...callout, marginTop: 12, background: 'rgba(96,165,250,0.06)', borderColor: 'rgba(96,165,250,0.2)', marginBottom: 14 }}>
+                <strong>Example:</strong> Stake 10,000 PUT for 15 days, earn 500 X1SAFE total.
+                <br/>→ <code style={code}>vested = 15/30 = 50%</code> → claim <strong style={{ color: 'var(--success)' }}>250 X1SAFE now</strong>, 250 unlocks over next 15 days.
+              </div>
+
+              {/* Rules */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {[
+                  ['Partial claims allowed',      'User can claim any time — only the vested portion transfers on-chain.'],
+                  ['Vesting resets on re-stake',  'Adding new PUT only resets the clock on the new amount. Existing vested rewards are preserved.'],
+                  ['Early exit forfeits unvested','Unstaking before 30 days burns the locked (unvested) reward portion — anti-gaming mechanism.'],
+                  ['No cliff',                    'Purely linear. Claiming starts from Day 1 — even 1% vested can be claimed.'],
+                ].map(([title, desc]) => (
+                  <div key={title as string} style={{
+                    display: 'flex', gap: 10, padding: '9px 14px',
+                    background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+                  }}>
+                    <span style={{ color: 'var(--success)', flexShrink: 0 }}>→</span>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.8rem', color: 'var(--text)', marginBottom: 2 }}>{title}</div>
+                      <div style={{ fontSize: '0.76rem', color: 'var(--text-3)', lineHeight: 1.5 }}>{desc}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Why */}
+              <div style={{ ...callout, marginTop: 14 }}>
+                <strong>Why vesting?</strong> Prevents bots staking → dumping → exiting in one block. Rewards committed stakers, stabilizes PUT supply, and aligns incentives with protocol long-term growth.
+              </div>
             </>
           ),
         },

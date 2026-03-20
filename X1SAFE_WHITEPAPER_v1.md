@@ -1,6 +1,6 @@
-# X1SAFE Protocol — White Paper v1.0
+# X1SAFE Protocol — White Paper v1.1
 
-**Date:** March 2026  
+**Date:** March 2026 (updated March 20, 2026)  
 **Author:** CMO XEN X1 🐾🐾🐾 (@Prxenx1)  
 **Builder:** Theo (@xxen_bot) — Cyberdyne Unlimited LLC  
 **Network:** X1 Mainnet / Testnet  
@@ -107,7 +107,7 @@ Users have **two mutually exclusive** exit options:
 
 ## 6. Staking Module
 
-X1SAFE-PUT holders can stake PUT tokens to earn protocol yield.
+X1SAFE-PUT holders can stake PUT tokens to earn protocol yield, paid out in **X1SAFE tokens**.
 
 **Staking token:** sX1SAFE (receipt token for staked position)  
 **Yield source:** Protocol fee distribution  
@@ -122,6 +122,70 @@ X1SAFE-PUT holders can stake PUT tokens to earn protocol yield.
 | Treasury        | Configurable (`treasury_fee_share`) |
 
 All shares expressed in basis points (bps), total ≤ 10,000.
+
+---
+
+## 6.1 X1SAFE Reward Vesting — Linear Claim Schedule
+
+Staking rewards are not instantly claimable at 100%. Instead, X1SAFE rewards vest **linearly over time** to incentivize long-term staking and prevent mercenary yield farming.
+
+### Vesting Schedule
+
+| Time Staked | % of Rewards Claimable |
+|-------------|------------------------|
+| Day 0       | 0%                     |
+| Day 7       | ~23%                   |
+| Day 15      | ~50%                   |
+| Day 22      | ~73%                   |
+| Day 30      | 100% ✅                |
+
+> Full vesting period: **30 days** from the moment staking begins.  
+> Rewards accrue immediately — but unlock gradually over the 30-day window.
+
+### Formula
+
+```
+vested_pct     = min(elapsed_seconds / VESTING_PERIOD, 1.0)
+claimable      = total_earned × vested_pct
+locked_balance = total_earned − claimable
+```
+
+Where `VESTING_PERIOD = 30 × 24 × 3600 = 2,592,000 seconds`.
+
+### Example
+
+> Stake 10,000 PUT for 15 days. Total rewards earned = 500 X1SAFE.
+>
+> ```
+> vested_pct  = 15 / 30 = 50%
+> claimable   = 500 × 0.50 = 250 X1SAFE  ← can claim now
+> locked      = 500 × 0.50 = 250 X1SAFE  ← unlocks over next 15 days
+> ```
+
+### Key Rules
+
+- **Partial claims allowed** — user can claim any time; only the vested portion transfers
+- **Vesting resets on re-stake** — adding new PUT to an existing position restarts the vesting clock on the new amount only (existing vested rewards are preserved)
+- **Unstake forfeits unvested rewards** — early exit burns the locked portion (anti-gaming)
+- **No cliff** — vesting is purely linear, no lock-up threshold required before claiming begins
+
+### On-chain Implementation
+
+Two new fields added to `UserStake`:
+
+```rust
+pub stake_start_ts:  i64,   // Unix timestamp when staking began
+pub vesting_period:  u32,   // Configurable (default: 2,592,000 = 30 days)
+```
+
+`claim_rewards` checks elapsed time against `stake_start_ts` and applies `vested_pct` before transferring X1SAFE from the reward reserve to the user wallet.
+
+### Why Vesting?
+
+1. **Prevents mercenary farming** — bots can't stake → dump → exit in one block
+2. **Rewards committed stakers** — 30-day holders earn full yield
+3. **Stabilizes PUT supply** — reduces sell pressure from instant reward dumps
+4. **Aligns incentives** — stakers benefit from protocol growth over time
 
 ---
 
@@ -195,6 +259,7 @@ User
 | ✅ v1 | Staking module (sX1SAFE, yield distribution) |
 | ✅ v1 | Redeem X1SAFE instruction |
 | 🔜 v2 | XEN collateral support |
+| ✅ v1.1 | Linear vesting on staking rewards (30-day schedule) |
 | 🔜 v2 | Time-locked positions with yield bonus |
 | 🔜 v2 | On-chain oracle integration (RANDAO+VDF) |
 | 🔜 v3 | Cross-protocol yield routing |
