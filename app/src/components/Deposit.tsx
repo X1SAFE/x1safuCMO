@@ -39,8 +39,23 @@ export function Deposit() {
   const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState('')
   const [txSig,    setTxSig]    = useState('')
+  const [mintReady, setMintReady] = useState<boolean | null>(null) // null = checking
 
   const asset = ASSETS.find(a => a.key === assetKey)!
+
+  // Check if PUT mint has been initialized on-chain
+  useEffect(() => {
+    const checkMint = async () => {
+      try {
+        const putMint = getPutMintPDA()
+        const info = await connection.getAccountInfo(putMint)
+        setMintReady(!!info)
+      } catch {
+        setMintReady(false)
+      }
+    }
+    checkMint()
+  }, [connection])
 
   useEffect(() => {
     if (!wallet.publicKey) return
@@ -69,6 +84,18 @@ export function Deposit() {
     if (!wallet.publicKey || !wallet.signTransaction || !amount) return
     setLoading(true); setError(''); setTxSig('')
     try {
+      // Pre-flight: verify PUT mint exists on-chain before building tx
+      const putMintKey = getPutMintPDA()
+      const mintInfo = await connection.getAccountInfo(putMintKey)
+      if (!mintInfo) {
+        setError(
+          'Vault chưa được khởi tạo đầy đủ: X1SAFE_PUT mint chưa tồn tại trên chain. ' +
+          'Admin cần chạy create_mints từ authority wallet (B5gEjq...cXiDm) trước.'
+        )
+        setLoading(false)
+        return
+      }
+
       const vault          = getVaultPDA()
       const assetConfig    = getAssetConfigPDA(asset.mint)
       const reserveAccount = getReserveAccount(asset.mint)
@@ -168,7 +195,7 @@ export function Deposit() {
   const balance = balances[assetKey] || 0
   const halfBal = balance / 2
   const isInsufficient = numAmount > balance && balance > 0
-  const canDeposit = !loading && numAmount > 0 && !isInsufficient && wallet.signTransaction
+  const canDeposit = !loading && numAmount > 0 && !isInsufficient && wallet.signTransaction && mintReady === true
 
   return (
     <div className="tab-content">
@@ -277,6 +304,19 @@ export function Deposit() {
             <span>·</span>
             <span>🔒 Receipt locked to wallet</span>
           </div>
+        </div>
+      )}
+
+      {/* ── Vault not initialized warning ── */}
+      {mintReady === null && (
+        <div className="info-box" style={{ marginBottom: 14, color: 'var(--text-3)' }}>
+          ⏳ Đang kiểm tra trạng thái vault…
+        </div>
+      )}
+      {mintReady === false && (
+        <div className="info-box danger" style={{ marginBottom: 14 }}>
+          🔴 <strong>Vault chưa sẵn sàng</strong> — X1SAFE_PUT mint chưa được khởi tạo trên chain.
+          Admin cần chạy lệnh <code>create_mints</code> từ authority wallet trước khi deposit.
         </div>
       )}
 
