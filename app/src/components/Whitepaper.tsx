@@ -174,41 +174,43 @@ export function Whitepaper() {
           ),
         },
         {
-          num: '6.1', title: 'X1SAFE Reward Vesting — Linear Claim Schedule',
+          num: '6.1', title: 'X1SAFE Reward Vesting — Weekly Tranche Schedule',
           body: (
             <>
               <p style={p}>
-                Staking rewards are <strong>not instantly claimable at 100%</strong>. X1SAFE rewards vest <strong>linearly over 30 days</strong> to incentivize long-term staking and prevent mercenary yield farming.
+                Staking rewards are <strong>not instantly claimable at 100%</strong>. X1SAFE rewards are released in <strong>6 equal weekly tranches over 42 days</strong> — each week unlocks exactly 1/6 of total earned rewards.
               </p>
 
-              {/* Vesting progress visual */}
+              {/* Tranche visual */}
               <div style={{ margin: '16px 0', padding: '18px 20px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)' }}>
                 <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 14 }}>
-                  Vesting Timeline — 30 Day Linear
+                  6 Weekly Tranches — 42 Days Total
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {[
-                    { day: 'Day 0',  pct: 0,   label: 'Stake begins' },
-                    { day: 'Day 7',  pct: 23,  label: '~23% claimable' },
-                    { day: 'Day 15', pct: 50,  label: '50% claimable' },
-                    { day: 'Day 22', pct: 73,  label: '~73% claimable' },
-                    { day: 'Day 30', pct: 100, label: '100% ✅ Full vesting' },
-                  ].map(({ day, pct, label }) => (
-                    <div key={day} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div style={{ width: 44, fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-3)', flexShrink: 0 }}>{day}</div>
+                    { week: 'Week 1', day: 'Day 7',  cumPct: Math.round(100/6*1),   amount: '16.67' },
+                    { week: 'Week 2', day: 'Day 14', cumPct: Math.round(100/6*2),   amount: '16.67' },
+                    { week: 'Week 3', day: 'Day 21', cumPct: Math.round(100/6*3),   amount: '16.67' },
+                    { week: 'Week 4', day: 'Day 28', cumPct: Math.round(100/6*4),   amount: '16.67' },
+                    { week: 'Week 5', day: 'Day 35', cumPct: Math.round(100/6*5),   amount: '16.67' },
+                    { week: 'Week 6', day: 'Day 42', cumPct: 100,                   amount: '16.67' },
+                  ].map(({ week, day, cumPct, amount }) => (
+                    <div key={week} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ width: 52, fontSize: '0.72rem', fontWeight: 700, color: cumPct === 100 ? 'var(--success)' : 'var(--text-3)', flexShrink: 0 }}>{week}</div>
+                      <div style={{ width: 40, fontSize: '0.68rem', color: 'var(--text-3)', flexShrink: 0 }}>{day}</div>
                       <div style={{ flex: 1, height: 8, background: 'rgba(255,255,255,0.06)', borderRadius: 99, overflow: 'hidden' }}>
                         <div style={{
                           height: '100%',
-                          width: `${pct}%`,
-                          background: pct === 100
+                          width: `${cumPct}%`,
+                          background: cumPct === 100
                             ? 'var(--success)'
-                            : `linear-gradient(90deg, var(--success) 0%, rgba(34,197,94,0.5) 100%)`,
+                            : 'linear-gradient(90deg, var(--success) 0%, rgba(34,197,94,0.5) 100%)',
                           borderRadius: 99,
                           transition: 'width 0.3s',
                         }}/>
                       </div>
-                      <div style={{ width: 36, fontSize: '0.72rem', fontWeight: 800, color: pct === 100 ? 'var(--success)' : 'var(--text-2)', flexShrink: 0, textAlign: 'right' }}>{pct}%</div>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-3)', flexShrink: 0, minWidth: 120 }}>{label}</div>
+                      <div style={{ width: 38, fontSize: '0.72rem', fontWeight: 800, color: cumPct === 100 ? 'var(--success)' : 'var(--text-2)', flexShrink: 0, textAlign: 'right' }}>{cumPct}%</div>
+                      <div style={{ fontSize: '0.70rem', color: 'var(--text-3)', flexShrink: 0, minWidth: 110 }}>+{amount} X1SAFE</div>
                     </div>
                   ))}
                 </div>
@@ -216,25 +218,27 @@ export function Whitepaper() {
 
               {/* Formula */}
               <div style={codeBlock}>
-                <div style={codeLine}><span style={{ color: '#94a3b8' }}>// Vesting formula</span></div>
-                <div style={codeLine}><span style={{ color: '#60a5fa' }}>vested_pct</span>  = min(elapsed_seconds / <span style={{ color: 'var(--success)' }}>2_592_000</span>, 1.0)  <span style={{ color: '#94a3b8' }}>// 30 days</span></div>
-                <div style={codeLine}><span style={{ color: '#60a5fa' }}>claimable</span>   = total_earned × vested_pct</div>
-                <div style={codeLine}><span style={{ color: '#60a5fa' }}>locked</span>      = total_earned − claimable</div>
+                <div style={codeLine}><span style={{ color: '#94a3b8' }}>// Weekly tranche formula</span></div>
+                <div style={codeLine}><span style={{ color: '#60a5fa' }}>tranche_size</span>      = total_earned ÷ <span style={{ color: 'var(--success)' }}>6</span></div>
+                <div style={codeLine}><span style={{ color: '#60a5fa' }}>tranches_unlocked</span> = floor(elapsed_days / <span style={{ color: 'var(--success)' }}>7</span>)  <span style={{ color: '#94a3b8' }}>// max 6</span></div>
+                <div style={codeLine}><span style={{ color: '#60a5fa' }}>claimable</span>         = tranches_unlocked × tranche_size  <span style={{ color: '#94a3b8' }}>// minus already claimed</span></div>
+                <div style={codeLine}><span style={{ color: '#60a5fa' }}>locked</span>            = total_earned − (tranches_unlocked × tranche_size)</div>
               </div>
 
               {/* Example */}
               <div style={{ ...callout, marginTop: 12, background: 'rgba(96,165,250,0.06)', borderColor: 'rgba(96,165,250,0.2)', marginBottom: 14 }}>
-                <strong>Example:</strong> Stake 10,000 PUT for 15 days, earn 500 X1SAFE total.
-                <br/>→ <code style={code}>vested = 15/30 = 50%</code> → claim <strong style={{ color: 'var(--success)' }}>250 X1SAFE now</strong>, 250 unlocks over next 15 days.
+                <strong>Example:</strong> Earn <strong>600 X1SAFE</strong> total. After 3 weeks:
+                <br/>→ <code style={code}>tranche = 600 ÷ 6 = 100 X1SAFE/week</code>
+                <br/>→ <strong style={{ color: 'var(--success)' }}>Claim 300 X1SAFE now</strong> (weeks 1–3), 300 locked over weeks 4–6.
               </div>
 
               {/* Rules */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {[
-                  ['Partial claims allowed',      'User can claim any time — only the vested portion transfers on-chain.'],
-                  ['Vesting resets on re-stake',  'Adding new PUT only resets the clock on the new amount. Existing vested rewards are preserved.'],
-                  ['Early exit forfeits unvested','Unstaking before 30 days burns the locked (unvested) reward portion — anti-gaming mechanism.'],
-                  ['No cliff',                    'Purely linear. Claiming starts from Day 1 — even 1% vested can be claimed.'],
+                  ['Claim any unlocked tranche',  'User can claim weekly tranches as they unlock — no need to wait 42 days.'],
+                  ['Tranches accumulate',          'Missed week 1 + week 2 can be claimed together on day 14+. No expiry on unlocked tranches.'],
+                  ['Re-stake preserves history',  'Adding new PUT resets clock only on new rewards. Existing earned tranches are preserved.'],
+                  ['Early exit forfeits locked',  'Unstaking early burns unclaimed locked tranches — anti-gaming mechanism.'],
                 ].map(([title, desc]) => (
                   <div key={title as string} style={{
                     display: 'flex', gap: 10, padding: '9px 14px',
@@ -251,7 +255,7 @@ export function Whitepaper() {
 
               {/* Why */}
               <div style={{ ...callout, marginTop: 14 }}>
-                <strong>Why vesting?</strong> Prevents bots staking → dumping → exiting in one block. Rewards committed stakers, stabilizes PUT supply, and aligns incentives with protocol long-term growth.
+                <strong>Why 6 tranches?</strong> Equal weekly payouts are predictable and fair. Users know exactly when each 1/6 unlocks. No complex math — just 7 days per tranche, 6 tranches total.
               </div>
             </>
           ),

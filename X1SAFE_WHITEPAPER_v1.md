@@ -125,67 +125,69 @@ All shares expressed in basis points (bps), total ≤ 10,000.
 
 ---
 
-## 6.1 X1SAFE Reward Vesting — Linear Claim Schedule
+## 6.1 X1SAFE Reward Vesting — Weekly Tranche Schedule
 
-Staking rewards are not instantly claimable at 100%. Instead, X1SAFE rewards vest **linearly over time** to incentivize long-term staking and prevent mercenary yield farming.
+Staking rewards are **not instantly claimable at 100%**. Instead, X1SAFE rewards are released in **6 equal weekly tranches** over 42 days, ensuring long-term commitment and preventing mercenary yield farming.
 
 ### Vesting Schedule
 
-| Time Staked | % of Rewards Claimable |
-|-------------|------------------------|
-| Day 0       | 0%                     |
-| Day 7       | ~23%                   |
-| Day 15      | ~50%                   |
-| Day 22      | ~73%                   |
-| Day 30      | 100% ✅                |
+| Tranche | Unlock Day | X1SAFE Claimable (per 100 earned) | Cumulative |
+|---------|------------|-----------------------------------|------------|
+| Tranche 1 | Day 7  | 16.67 X1SAFE | 16.67% |
+| Tranche 2 | Day 14 | 16.67 X1SAFE | 33.33% |
+| Tranche 3 | Day 21 | 16.67 X1SAFE | 50.00% |
+| Tranche 4 | Day 28 | 16.67 X1SAFE | 66.67% |
+| Tranche 5 | Day 35 | 16.67 X1SAFE | 83.33% |
+| Tranche 6 | Day 42 | 16.67 X1SAFE | **100% ✅** |
 
-> Full vesting period: **30 days** from the moment staking begins.  
-> Rewards accrue immediately — but unlock gradually over the 30-day window.
+> Full vesting period: **42 days** (6 weeks) from the moment staking begins.  
+> Each tranche unlocks exactly 1/6 of total earned rewards — equal, predictable, weekly.
 
 ### Formula
 
 ```
-vested_pct     = min(elapsed_seconds / VESTING_PERIOD, 1.0)
-claimable      = total_earned × vested_pct
-locked_balance = total_earned − claimable
+tranche_size   = total_earned ÷ 6
+tranches_unlocked = floor(elapsed_days / 7)        // 0 to 6
+claimable      = tranches_unlocked × tranche_size  // minus already claimed
+locked_balance = total_earned − (tranches_unlocked × tranche_size)
 ```
-
-Where `VESTING_PERIOD = 30 × 24 × 3600 = 2,592,000 seconds`.
 
 ### Example
 
-> Stake 10,000 PUT for 15 days. Total rewards earned = 500 X1SAFE.
+> Stake 10,000 PUT for 3 weeks. Total rewards earned = 600 X1SAFE.
 >
 > ```
-> vested_pct  = 15 / 30 = 50%
-> claimable   = 500 × 0.50 = 250 X1SAFE  ← can claim now
-> locked      = 500 × 0.50 = 250 X1SAFE  ← unlocks over next 15 days
+> tranche_size      = 600 ÷ 6 = 100 X1SAFE per week
+> tranches_unlocked = floor(21 / 7) = 3
+> claimable         = 3 × 100 = 300 X1SAFE  ← can claim now
+> locked            = 600 − 300 = 300 X1SAFE ← unlocks week 4, 5, 6
 > ```
 
 ### Key Rules
 
-- **Partial claims allowed** — user can claim any time; only the vested portion transfers
-- **Vesting resets on re-stake** — adding new PUT to an existing position restarts the vesting clock on the new amount only (existing vested rewards are preserved)
-- **Unstake forfeits unvested rewards** — early exit burns the locked portion (anti-gaming)
-- **No cliff** — vesting is purely linear, no lock-up threshold required before claiming begins
+- **Claim any unlocked tranche at any time** — user claims week by week, no need to wait for full 42 days
+- **Unclaimed tranches accumulate** — missed week 1 + week 2 can be claimed together on day 14+
+- **Re-stake resets clock on new rewards only** — existing earned tranches are preserved
+- **Early unstake forfeits locked tranches** — unvested tranches are burned (anti-gaming)
+- **Fixed tranche size** — always exactly 1/6 of total rewards, no rounding ambiguity
 
 ### On-chain Implementation
 
-Two new fields added to `UserStake`:
+Two fields added to `UserStake`:
 
 ```rust
-pub stake_start_ts:  i64,   // Unix timestamp when staking began
-pub vesting_period:  u32,   // Configurable (default: 2,592,000 = 30 days)
+pub stake_start_ts:    i64,  // Unix timestamp when staking began
+pub tranches_claimed:  u8,   // Number of tranches already claimed (0–6)
 ```
 
-`claim_rewards` checks elapsed time against `stake_start_ts` and applies `vested_pct` before transferring X1SAFE from the reward reserve to the user wallet.
+`claim_rewards` computes `floor((now - stake_start_ts) / 7_days)`, subtracts `tranches_claimed`, and transfers the difference × `tranche_size` to the user wallet.
 
-### Why Vesting?
+### Why Weekly Tranches?
 
-1. **Prevents mercenary farming** — bots can't stake → dump → exit in one block
-2. **Rewards committed stakers** — 30-day holders earn full yield
-3. **Stabilizes PUT supply** — reduces sell pressure from instant reward dumps
-4. **Aligns incentives** — stakers benefit from protocol growth over time
+1. **Predictable** — users know exactly when each tranche unlocks (every 7 days)
+2. **Anti-bot** — no single-block dump of full rewards
+3. **Fair** — equal share per week, no cliff, no complex math
+4. **Flexible** — claim as each tranche unlocks, no need to wait for all 6
 
 ---
 
@@ -259,7 +261,7 @@ User
 | ✅ v1 | Staking module (sX1SAFE, yield distribution) |
 | ✅ v1 | Redeem X1SAFE instruction |
 | 🔜 v2 | XEN collateral support |
-| ✅ v1.1 | Linear vesting on staking rewards (30-day schedule) |
+| ✅ v1.1 | Weekly tranche vesting on staking rewards (6 × 7 days = 42-day schedule) |
 | 🔜 v2 | Time-locked positions with yield bonus |
 | 🔜 v2 | On-chain oracle integration (RANDAO+VDF) |
 | 🔜 v3 | Cross-protocol yield routing |
