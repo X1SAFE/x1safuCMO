@@ -5,7 +5,7 @@ import {
   getAssociatedTokenAddress,
   createAssociatedTokenAccountInstruction,
   getAccount,
-  TOKEN_2022_PROGRAM_ID,
+  TOKEN_PROGRAM_ID,
 } from '@solana/spl-token'
 import { Transaction } from '@solana/web3.js'
 import {
@@ -57,13 +57,14 @@ export function Withdraw() {
       const safeMint     = getSafeMintPDA()
       const userPosition = getUserPositionPDA(wallet.publicKey)
 
-      const userPutAccount  = await getAssociatedTokenAddress(putMint,  wallet.publicKey, false, TOKEN_2022_PROGRAM_ID)
-      const userSafeAccount = await getAssociatedTokenAddress(safeMint, wallet.publicKey, false, TOKEN_2022_PROGRAM_ID)
+      // PUT and SAFE mints are Token classic (TokenkegQ) — verified on-chain 2026-03-20
+      const userPutAccount  = await getAssociatedTokenAddress(putMint,  wallet.publicKey, false, TOKEN_PROGRAM_ID)
+      const userSafeAccount = await getAssociatedTokenAddress(safeMint, wallet.publicKey, false, TOKEN_PROGRAM_ID)
 
       // Ensure user safe ATA exists
-      try { await getAccount(connection, userSafeAccount, undefined, TOKEN_2022_PROGRAM_ID) } catch {
+      try { await getAccount(connection, userSafeAccount, undefined, TOKEN_PROGRAM_ID) } catch {
         const tx = new Transaction()
-        tx.add(createAssociatedTokenAccountInstruction(wallet.publicKey, userSafeAccount, wallet.publicKey, safeMint, TOKEN_2022_PROGRAM_ID))
+        tx.add(createAssociatedTokenAccountInstruction(wallet.publicKey, userSafeAccount, wallet.publicKey, safeMint, TOKEN_PROGRAM_ID))
         tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash
         tx.feePayer = wallet.publicKey
         const signed = await wallet.signTransaction!(tx)

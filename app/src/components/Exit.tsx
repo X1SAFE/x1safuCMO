@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useConnection, useWallet, useAnchorWallet } from '@solana/wallet-adapter-react'
 import { AnchorProvider } from '@coral-xyz/anchor'
-import { getAssociatedTokenAddress, createAssociatedTokenAccountInstruction, getAccount } from '@solana/spl-token'
+import { getAssociatedTokenAddress, createAssociatedTokenAccountInstruction, getAccount, TOKEN_PROGRAM_ID } from '@solana/spl-token'
 import { Transaction } from '@solana/web3.js'
 import {
   ASSETS, EXPLORER, IS_TESTNET,
@@ -46,18 +46,20 @@ export function Exit() {
       const vault    = getVaultPDA()
       const safeMint = getSafeMintPDA()
 
-      const userSafeAccount = await getAssociatedTokenAddress(safeMint, wallet.publicKey)
+      // SAFE mint uses Token classic (TokenkegQ) — verified on-chain 2026-03-20
+      const userSafeAccount = await getAssociatedTokenAddress(safeMint, wallet.publicKey, false, TOKEN_PROGRAM_ID)
 
       // Build remaining accounts: [reserve_0, user_ata_0, ...] for each asset
       const remainingAccounts: { pubkey: import('@solana/web3.js').PublicKey; isWritable: boolean; isSigner: boolean }[] = []
       for (const a of ASSETS) {
         const reserveAcct = getReserveAccount(a.mint)
-        const userAta     = await getAssociatedTokenAddress(a.mint, wallet.publicKey)
+        // All asset mints use Token classic program (verified on-chain 2026-03-20)
+        const userAta     = await getAssociatedTokenAddress(a.mint, wallet.publicKey, false, TOKEN_PROGRAM_ID)
 
         // Create user ATA if needed
-        try { await getAccount(connection, userAta) } catch {
+        try { await getAccount(connection, userAta, undefined, TOKEN_PROGRAM_ID) } catch {
           const tx = new Transaction()
-          tx.add(createAssociatedTokenAccountInstruction(wallet.publicKey, userAta, wallet.publicKey, a.mint))
+          tx.add(createAssociatedTokenAccountInstruction(wallet.publicKey, userAta, wallet.publicKey, a.mint, TOKEN_PROGRAM_ID))
           tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash
           tx.feePayer = wallet.publicKey
           const signed = await wallet.signTransaction!(tx)

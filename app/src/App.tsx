@@ -18,6 +18,7 @@ import { Dashboard }   from './components/Dashboard'
 import { Deposit }     from './components/Deposit'
 import { Withdraw }    from './components/Withdraw'
 import { Stake }       from './components/Stake'
+import { Exit }        from './components/Exit'
 import { Whitepaper }  from './components/Whitepaper'
 import { RPC_URL, IS_TESTNET } from './lib/vault'
 
@@ -25,13 +26,14 @@ declare global {
   interface Window { backpack?: any; xnft?: any }
 }
 
-type Tab = 'dashboard' | 'deposit' | 'withdraw' | 'stake' | 'whitepaper'
+type Tab = 'dashboard' | 'deposit' | 'withdraw' | 'stake' | 'exit' | 'whitepaper'
 
 const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'dashboard',  label: 'Overview',    icon: '◈' },
   { key: 'deposit',    label: 'Deposit',     icon: '↓' },
   { key: 'withdraw',   label: 'Withdraw',    icon: '↑' },
-  { key: 'stake',      label: 'Stake',       icon: '⬡' },
+  { key: 'stake',      label: 'Stake PUT',   icon: '⬡' },
+  { key: 'exit',       label: 'Exit',        icon: '⏏' },
   { key: 'whitepaper', label: 'White Paper', icon: '📄' },
 ]
 
@@ -387,6 +389,7 @@ function App() {
         {tab === 'deposit'    && <Deposit />}
         {tab === 'withdraw'   && <Withdraw />}
         {tab === 'stake'      && <Stake />}
+        {tab === 'exit'       && <Exit />}
         {tab === 'whitepaper' && <Whitepaper />}
       </main>
     </div>

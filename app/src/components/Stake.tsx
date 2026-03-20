@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useConnection, useWallet, useAnchorWallet } from '@solana/wallet-adapter-react'
 import { AnchorProvider } from '@coral-xyz/anchor'
-import { getAssociatedTokenAddress, createAssociatedTokenAccountInstruction, getAccount } from '@solana/spl-token'
+import { getAssociatedTokenAddress, createAssociatedTokenAccountInstruction, getAccount, TOKEN_PROGRAM_ID } from '@solana/spl-token'
 import { Transaction } from '@solana/web3.js'
 import {
   EXPLORER, IS_TESTNET,
@@ -61,13 +61,14 @@ export function Stake() {
       const stakeReserve = getStakeReservePDA()
       const userStakePK  = getUserStakePDA(wallet.publicKey)
 
-      const userX1safe  = await getAssociatedTokenAddress(safeMint, wallet.publicKey)
-      const userSx1safe = await getAssociatedTokenAddress(sx1safeMint, wallet.publicKey)
+      // All vault mints use Token classic program (verified on-chain 2026-03-20)
+      const userX1safe  = await getAssociatedTokenAddress(safeMint, wallet.publicKey, false, TOKEN_PROGRAM_ID)
+      const userSx1safe = await getAssociatedTokenAddress(sx1safeMint, wallet.publicKey, false, TOKEN_PROGRAM_ID)
 
       // Ensure sX1SAFE ATA exists
-      try { await getAccount(connection, userSx1safe) } catch {
+      try { await getAccount(connection, userSx1safe, undefined, TOKEN_PROGRAM_ID) } catch {
         const tx = new Transaction()
-        tx.add(createAssociatedTokenAccountInstruction(wallet.publicKey, userSx1safe, wallet.publicKey, sx1safeMint))
+        tx.add(createAssociatedTokenAccountInstruction(wallet.publicKey, userSx1safe, wallet.publicKey, sx1safeMint, TOKEN_PROGRAM_ID))
         tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash
         tx.feePayer = wallet.publicKey
         const signed = await wallet.signTransaction!(tx)
@@ -113,8 +114,8 @@ export function Stake() {
       const rewardReserve = getRewardReservePDA()
       const userStakePK   = getUserStakePDA(wallet.publicKey)
 
-      const userX1safe  = await getAssociatedTokenAddress(safeMint, wallet.publicKey)
-      const userSx1safe = await getAssociatedTokenAddress(sx1safeMint, wallet.publicKey)
+      const userX1safe  = await getAssociatedTokenAddress(safeMint, wallet.publicKey, false, TOKEN_PROGRAM_ID)
+      const userSx1safe = await getAssociatedTokenAddress(sx1safeMint, wallet.publicKey, false, TOKEN_PROGRAM_ID)
 
       const tx = await program.methods
         .unstake(toBaseUnits(numAmt, 6))
@@ -150,7 +151,7 @@ export function Stake() {
       const safeMint      = getSafeMintPDA()
       const rewardReserve = getRewardReservePDA()
       const userStakePK   = getUserStakePDA(wallet.publicKey)
-      const userX1safe    = await getAssociatedTokenAddress(safeMint, wallet.publicKey)
+      const userX1safe    = await getAssociatedTokenAddress(safeMint, wallet.publicKey, false, TOKEN_PROGRAM_ID)
 
       const tx = await program.methods
         .claimRewards()
@@ -193,8 +194,11 @@ export function Stake() {
   return (
     <div style={{ maxWidth: 480, margin: '0 auto' }}>
       <div style={{ marginBottom: 18 }}>
-        <div className="page-title">Stake</div>
-        <div className="page-subtitle">Stake X1SAFE → receive sX1SAFE + earn yield</div>
+        <div className="page-title">Stake X1SAFE</div>
+        <div className="page-subtitle">Stake X1SAFE (free) → receive sX1SAFE + earn yield</div>
+        <div style={{ marginTop: 8, padding: '8px 12px', background: 'rgba(147,51,234,0.05)', border: '1px solid rgba(147,51,234,0.15)', borderRadius: 8, fontSize: '0.72rem', color: 'var(--text-3)' }}>
+          💡 Have X1SAFE_PUT? Go to <strong>Withdraw</strong> tab first to convert PUT → X1SAFE, then stake here.
+        </div>
       </div>
 
       {/* Pool stats */}
