@@ -208,8 +208,8 @@ export function Stake() {
       }))
       tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash
       tx.feePayer = wallet.publicKey
-      const signed = await wallet.signTransaction(tx)
-      const sig    = await connection.sendRawTransaction(signed.serialize())
+      // wallet.sendTransaction handles sign+send (avoids VersionedTx kind crash)
+      const sig = await wallet.sendTransaction(tx, connection, { skipPreflight: false })
       await connection.confirmTransaction(sig, 'confirmed')
       setTxSig(sig); setStakeAmount(''); setShowConfirm(false)
     } catch (e: any) {
@@ -260,8 +260,8 @@ export function Stake() {
 
       tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash
       tx.feePayer = wallet.publicKey
-      const signed = await wallet.signTransaction(tx)
-      const sig    = await connection.sendRawTransaction(signed.serialize())
+      // wallet.sendTransaction handles sign+send (avoids VersionedTx kind crash)
+      const sig = await wallet.sendTransaction(tx, connection, { skipPreflight: false })
       await connection.confirmTransaction(sig, 'confirmed')
       setTxSig(sig)
     } catch (e: any) {

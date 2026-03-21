@@ -159,8 +159,8 @@ export function Exit() {
 
       tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash
       tx.feePayer = wallet.publicKey
-      const signed = await wallet.signTransaction(tx)
-      const sig    = await connection.sendRawTransaction(signed.serialize())
+      // wallet.sendTransaction handles sign+send (avoids VersionedTx kind crash)
+      const sig = await wallet.sendTransaction(tx, connection, { skipPreflight: false })
       await connection.confirmTransaction(sig, 'confirmed')
       setTxSig(sig); setAmount(''); setShowConfirm(false)
     } catch (e: any) {

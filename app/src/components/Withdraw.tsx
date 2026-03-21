@@ -133,8 +133,9 @@ export function Withdraw() {
 
       tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash
       tx.feePayer = wallet.publicKey
-      const signed = await wallet.signTransaction(tx)
-      const sig    = await connection.sendRawTransaction(signed.serialize())
+
+      // Use sendTransaction (wallet handles sign+send, avoids VersionedTx kind crash)
+      const sig = await wallet.sendTransaction(tx, connection, { skipPreflight: false })
       await connection.confirmTransaction(sig, 'confirmed')
       setTxSig(sig)
       setAmount('')

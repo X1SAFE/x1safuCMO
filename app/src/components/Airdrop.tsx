@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useConnection, useWallet, useAnchorWallet } from '@solana/wallet-adapter-react'
+import { useConnection, useWallet } from '@solana/wallet-adapter-react'
 import { getAssociatedTokenAddress, createAssociatedTokenAccountInstruction, getAccount } from '@solana/spl-token'
 import { Transaction } from '@solana/web3.js'
 import {
@@ -14,7 +14,7 @@ const AIRDROP_COOLDOWN_MINUTES = 60 // 1 hour cooldown
 export function Airdrop() {
   const { connection }  = useConnection()
   const wallet          = useWallet()
-  const anchorWallet    = useAnchorWallet()
+  
 
   const [loading,      setLoading]      = useState(false)
   const [txSig,        setTxSig]        = useState('')
@@ -91,7 +91,7 @@ export function Airdrop() {
   const canRequestAirdrop = !lastAirdrop || (Date.now() - lastAirdrop) >= AIRDROP_COOLDOWN_MINUTES * 60 * 1000
 
   const handleAirdrop = async () => {
-    if (!wallet.publicKey || !anchorWallet) return
+    if (!wallet.publicKey) return
     
     if (!canRequestAirdrop) {
       setError(`Please wait ${formatCountdown(countdown)} before requesting another airdrop`)
