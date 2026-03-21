@@ -15,7 +15,7 @@ pub struct Stake<'info> {
         seeds = [seeds::VAULT_STATE],
         bump = vault_state.bump,
     )]
-    pub vault_state: Account<'info, VaultState>,
+    pub vault_state: Box<Account<'info, VaultState>>,
     
     /// User position (must be active)
     #[account(
@@ -29,10 +29,10 @@ pub struct Stake<'info> {
         constraint = user_position.owner == user.key() @ X1safeError::Unauthorized,
         constraint = user_position.active @ X1safeError::PositionNotFound,
     )]
-    pub user_position: Account<'info, UserPosition>,
+    pub user_position: Box<Account<'info, UserPosition>>,
     
     /// Token mint
-    pub token_mint: Account<'info, Mint>,
+    pub token_mint: Box<Account<'info, Mint>>,
     
     /// User's X1SAFE-PUT account
     #[account(
@@ -40,14 +40,14 @@ pub struct Stake<'info> {
         constraint = user_x1safe_put_account.owner == user.key(),
         constraint = user_x1safe_put_account.mint == vault_state.x1safe_put_mint,
     )]
-    pub user_x1safe_put_account: Account<'info, TokenAccount>,
+    pub user_x1safe_put_account: Box<Account<'info, TokenAccount>>,
     
     /// Stake vault (holds staked X1SAFE-PUT)
     #[account(
         mut,
         constraint = stake_vault.mint == vault_state.x1safe_put_mint,
     )]
-    pub stake_vault: Account<'info, TokenAccount>,
+    pub stake_vault: Box<Account<'info, TokenAccount>>,
     
     /// Stake account (PDA)
     #[account(
@@ -61,7 +61,7 @@ pub struct Stake<'info> {
         ],
         bump
     )]
-    pub stake_account: Account<'info, StakeAccount>,
+    pub stake_account: Box<Account<'info, StakeAccount>>,
     
     /// Vesting schedule for X1SAFE rewards
     #[account(
@@ -75,7 +75,7 @@ pub struct Stake<'info> {
         ],
         bump
     )]
-    pub vesting_schedule: Account<'info, VestingSchedule>,
+    pub vesting_schedule: Box<Account<'info, VestingSchedule>>,
     
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,

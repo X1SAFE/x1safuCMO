@@ -12,8 +12,12 @@ export const X1_ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey('ATokenGPvbdGVxr1b2h
 // X1SAFE Vault Program (x1safu)
 export const PROGRAM_ID = new PublicKey('F2JnWVnjP1h6WG7KKUHqhp23etEJ4amdJquAcE9ecCoe')
 // X1SAFE PUT Staking Program
-// x1safe_put_staking program — deployed 2026-03-20, declare_id matches
-export const STAKING_PROGRAM_ID = new PublicKey('8s8JbaAtWtCKSyPfAxEN2vJLJFc3kWokxXxgCRvtHq9u')
+// x1safe_put_staking program — deployed + initialized 2026-03-20
+export const STAKING_PROGRAM_ID  = new PublicKey('8s8JbaAtWtCKSyPfAxEN2vJLJFc3kWokxXxgCRvtHq9u')
+// Staking vault mints (created during initialize_vault tx 4EsxZr...)
+export const STAKING_X1SAFE_MINT     = new PublicKey('75HZTezD1w2XBeoGJJzQxekayojEXeTgvJks8zWXWtda')
+export const STAKING_X1SAFE_PUT_MINT = new PublicKey('2J1JrRSyj2j93toj4k89buNKN2Z9sFXUmfAWZXWow5VA')
+export const STAKING_VAULT_STATE     = new PublicKey('Cp4SrtaPCmhZhEHWPyeoirrr4uY17Qgvtj1V1gYofcDM')
 
 // ── Verified X1 Testnet Mint Addresses ─────────────────────────────────────
 export const USDC_X_MINT = new PublicKey('6QNPqoF6GGhCFjTTQGxkpJkrH5ueS85b5RpX3GXdUSVw') // USDC.X 6 decimals

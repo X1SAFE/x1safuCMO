@@ -16,7 +16,7 @@ pub struct AddSupportedToken<'info> {
         bump = vault_state.bump,
         constraint = vault_state.authority == authority.key() @ X1safeError::Unauthorized,
     )]
-    pub vault_state: Account<'info, VaultState>,
+    pub vault_state: Box<Account<'info, VaultState>>,
     
     /// Token mint to add
     pub token_mint: Account<'info, Mint>,
@@ -29,7 +29,7 @@ pub struct AddSupportedToken<'info> {
         seeds = [seeds::SUPPORTED_TOKEN, token_mint.key().as_ref()],
         bump
     )]
-    pub supported_token: Account<'info, SupportedToken>,
+    pub supported_token: Box<Account<'info, SupportedToken>>,
     
     /// Token vault (holds deposited tokens)
     #[account(
@@ -91,7 +91,7 @@ pub struct UpdateOracle<'info> {
         bump = vault_state.bump,
         constraint = vault_state.authority == authority.key() @ X1safeError::Unauthorized,
     )]
-    pub vault_state: Account<'info, VaultState>,
+    pub vault_state: Box<Account<'info, VaultState>>,
     
     /// Supported token to update
     #[account(
@@ -99,7 +99,7 @@ pub struct UpdateOracle<'info> {
         seeds = [seeds::SUPPORTED_TOKEN, token_mint.key().as_ref()],
         bump = supported_token.bump,
     )]
-    pub supported_token: Account<'info, SupportedToken>,
+    pub supported_token: Box<Account<'info, SupportedToken>>,
     
     /// Token mint
     pub token_mint: Account<'info, Mint>,

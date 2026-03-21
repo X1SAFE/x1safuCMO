@@ -14,7 +14,7 @@ pub struct ClaimX1safeRewards<'info> {
         seeds = [seeds::VAULT_STATE],
         bump = vault_state.bump,
     )]
-    pub vault_state: Account<'info, VaultState>,
+    pub vault_state: Box<Account<'info, VaultState>>,
     
     /// User position
     #[account(
@@ -27,7 +27,7 @@ pub struct ClaimX1safeRewards<'info> {
         bump = user_position.bump,
         constraint = user_position.owner == user.key() @ X1safeError::Unauthorized,
     )]
-    pub user_position: Account<'info, UserPosition>,
+    pub user_position: Box<Account<'info, UserPosition>>,
     
     /// Token mint
     pub token_mint: Account<'info, Mint>,
@@ -43,7 +43,7 @@ pub struct ClaimX1safeRewards<'info> {
         bump = stake_account.bump,
         constraint = stake_account.owner == user.key() @ X1safeError::Unauthorized,
     )]
-    pub stake_account: Account<'info, StakeAccount>,
+    pub stake_account: Box<Account<'info, StakeAccount>>,
     
     /// Vesting schedule
     #[account(
@@ -56,7 +56,7 @@ pub struct ClaimX1safeRewards<'info> {
         bump = vesting_schedule.bump,
         constraint = vesting_schedule.owner == user.key() @ X1safeError::Unauthorized,
     )]
-    pub vesting_schedule: Account<'info, VestingSchedule>,
+    pub vesting_schedule: Box<Account<'info, VestingSchedule>>,
     
     /// X1SAFE mint
     #[account(

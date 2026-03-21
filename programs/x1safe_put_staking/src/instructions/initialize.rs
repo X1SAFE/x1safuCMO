@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Mint, Token, TokenAccount};
+use anchor_spl::token::{Mint, Token};
 use crate::state::*;
 use crate::error::X1safeError;
 use crate::utils::seeds;
@@ -16,28 +16,18 @@ pub struct InitializeVault<'info> {
         seeds = [seeds::VAULT_STATE],
         bump
     )]
-    pub vault_state: Account<'info, VaultState>,
+    pub vault_state: Box<Account<'info, VaultState>>,
     
-    /// X1SAFE mint - will be created by the program
-    #[account(
-        init,
-        payer = authority,
-        mint::decimals = 6,
-        mint::authority = vault_state,
-    )]
-    pub x1safe_mint: Account<'info, Mint>,
+    /// X1SAFE mint - pre-created by client, authority = vault_state PDA
+    #[account(mut)]
+    pub x1safe_mint: Box<Account<'info, Mint>>,
     
-    /// X1SAFE-PUT mint - will be created by the program
-    #[account(
-        init,
-        payer = authority,
-        mint::decimals = 6,
-        mint::authority = vault_state,
-    )]
-    pub x1safe_put_mint: Account<'info, Mint>,
+    /// X1SAFE-PUT mint - pre-created by client, authority = vault_state PDA
+    #[account(mut)]
+    pub x1safe_put_mint: Box<Account<'info, Mint>>,
     
     /// USDC.X mint for fee distribution
-    pub usdc_mint: Account<'info, Mint>,
+    pub usdc_mint: Box<Account<'info, Mint>>,
     
     /// Treasury account for fee collection
     /// CHECK: Treasury address validated in handler

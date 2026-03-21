@@ -16,7 +16,7 @@ pub struct Deposit<'info> {
         seeds = [seeds::VAULT_STATE],
         bump = vault_state.bump,
     )]
-    pub vault_state: Account<'info, VaultState>,
+    pub vault_state: Box<Account<'info, VaultState>>,
     
     /// Supported token info
     #[account(
@@ -24,10 +24,10 @@ pub struct Deposit<'info> {
         bump = supported_token.bump,
         constraint = supported_token.active @ X1safeError::TokenNotSupported,
     )]
-    pub supported_token: Account<'info, SupportedToken>,
+    pub supported_token: Box<Account<'info, SupportedToken>>,
     
     /// Token mint being deposited
-    pub token_mint: Account<'info, Mint>,
+    pub token_mint: Box<Account<'info, Mint>>,
     
     /// User's token account
     #[account(
@@ -35,21 +35,21 @@ pub struct Deposit<'info> {
         constraint = user_token_account.owner == user.key(),
         constraint = user_token_account.mint == token_mint.key(),
     )]
-    pub user_token_account: Account<'info, TokenAccount>,
+    pub user_token_account: Box<Account<'info, TokenAccount>>,
     
     /// Vault token account (holds deposited tokens)
     #[account(
         mut,
         constraint = vault_token_account.mint == token_mint.key(),
     )]
-    pub vault_token_account: Account<'info, TokenAccount>,
+    pub vault_token_account: Box<Account<'info, TokenAccount>>,
     
     /// X1SAFE-PUT mint
     #[account(
         mut,
         constraint = x1safe_put_mint.key() == vault_state.x1safe_put_mint,
     )]
-    pub x1safe_put_mint: Account<'info, Mint>,
+    pub x1safe_put_mint: Box<Account<'info, Mint>>,
     
     /// User's X1SAFE-PUT account
     #[account(
@@ -57,7 +57,7 @@ pub struct Deposit<'info> {
         constraint = user_x1safe_put_account.owner == user.key(),
         constraint = user_x1safe_put_account.mint == x1safe_put_mint.key(),
     )]
-    pub user_x1safe_put_account: Account<'info, TokenAccount>,
+    pub user_x1safe_put_account: Box<Account<'info, TokenAccount>>,
     
     /// User position account (PDA)
     #[account(
@@ -71,7 +71,7 @@ pub struct Deposit<'info> {
         ],
         bump
     )]
-    pub user_position: Account<'info, UserPosition>,
+    pub user_position: Box<Account<'info, UserPosition>>,
     
     /// Oracle account for price feed
     /// CHECK: Oracle validated in supported_token

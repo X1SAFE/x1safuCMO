@@ -16,7 +16,7 @@ pub struct ExitVault<'info> {
         seeds = [seeds::VAULT_STATE],
         bump = vault_state.bump,
     )]
-    pub vault_state: Account<'info, VaultState>,
+    pub vault_state: Box<Account<'info, VaultState>>,
     
     /// User position
     #[account(
@@ -30,17 +30,17 @@ pub struct ExitVault<'info> {
         constraint = user_position.owner == user.key() @ X1safeError::Unauthorized,
         constraint = user_position.active @ X1safeError::PositionNotFound,
     )]
-    pub user_position: Account<'info, UserPosition>,
+    pub user_position: Box<Account<'info, UserPosition>>,
     
     /// Supported token info
     #[account(
         seeds = [seeds::SUPPORTED_TOKEN, token_mint.key().as_ref()],
         bump = supported_token.bump,
     )]
-    pub supported_token: Account<'info, SupportedToken>,
+    pub supported_token: Box<Account<'info, SupportedToken>>,
     
     /// Token mint
-    pub token_mint: Account<'info, Mint>,
+    pub token_mint: Box<Account<'info, Mint>>,
     
     /// User's X1SAFE-PUT account
     #[account(
@@ -48,21 +48,21 @@ pub struct ExitVault<'info> {
         constraint = user_x1safe_put_account.owner == user.key(),
         constraint = user_x1safe_put_account.mint == x1safe_put_mint.key(),
     )]
-    pub user_x1safe_put_account: Account<'info, TokenAccount>,
+    pub user_x1safe_put_account: Box<Account<'info, TokenAccount>>,
     
     /// X1SAFE-PUT mint
     #[account(
         mut,
         constraint = x1safe_put_mint.key() == vault_state.x1safe_put_mint,
     )]
-    pub x1safe_put_mint: Account<'info, Mint>,
+    pub x1safe_put_mint: Box<Account<'info, Mint>>,
     
     /// Vault token account
     #[account(
         mut,
         constraint = vault_token_account.mint == token_mint.key(),
     )]
-    pub vault_token_account: Account<'info, TokenAccount>,
+    pub vault_token_account: Box<Account<'info, TokenAccount>>,
     
     /// User's token account
     #[account(
@@ -70,21 +70,21 @@ pub struct ExitVault<'info> {
         constraint = user_token_account.owner == user.key(),
         constraint = user_token_account.mint == token_mint.key(),
     )]
-    pub user_token_account: Account<'info, TokenAccount>,
+    pub user_token_account: Box<Account<'info, TokenAccount>>,
     
     /// X1SAFE mint
     #[account(
         mut,
         constraint = x1safe_mint.key() == vault_state.x1safe_mint,
     )]
-    pub x1safe_mint: Account<'info, Mint>,
+    pub x1safe_mint: Box<Account<'info, Mint>>,
     
     /// Reward pool X1SAFE account
     #[account(
         mut,
         constraint = reward_pool_x1safe.mint == x1safe_mint.key(),
     )]
-    pub reward_pool_x1safe: Account<'info, TokenAccount>,
+    pub reward_pool_x1safe: Box<Account<'info, TokenAccount>>,
     
     pub token_program: Program<'info, Token>,
 }

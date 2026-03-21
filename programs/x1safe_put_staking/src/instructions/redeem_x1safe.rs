@@ -17,7 +17,7 @@ pub struct RedeemX1safe<'info> {
         seeds = [seeds::VAULT_STATE],
         bump = vault_state.bump,
     )]
-    pub vault_state: Account<'info, VaultState>,
+    pub vault_state: Box<Account<'info, VaultState>>,
 
     /// User position
     #[account(
@@ -31,7 +31,7 @@ pub struct RedeemX1safe<'info> {
         constraint = user_position.owner == user.key() @ X1safeError::Unauthorized,
         constraint = user_position.active @ X1safeError::PositionNotFound,
     )]
-    pub user_position: Account<'info, UserPosition>,
+    pub user_position: Box<Account<'info, UserPosition>>,
 
     /// Token mint
     pub token_mint: Account<'info, Mint>,
