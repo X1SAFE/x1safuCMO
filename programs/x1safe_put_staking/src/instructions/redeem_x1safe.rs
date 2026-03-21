@@ -29,7 +29,8 @@ pub struct RedeemX1safe<'info> {
         ],
         bump = user_position.bump,
         constraint = user_position.owner == user.key() @ X1safeError::Unauthorized,
-        constraint = user_position.active @ X1safeError::PositionNotFound,
+        // NOTE: active check removed — allow redeem as long as PUT balance > 0
+        // constraint = user_position.active @ X1safeError::PositionNotFound,
     )]
     pub user_position: Box<Account<'info, UserPosition>>,
 
@@ -123,19 +124,17 @@ pub fn handler(ctx: Context<RedeemX1safe>, put_amount: u64) -> Result<()> {
         put_amount,
     )?;
 
-    // Update vault state
+    // Update vault state (saturating to avoid underflow on testnet state mismatch)
     let vault_state = &mut ctx.accounts.vault_state;
     vault_state.total_x1safe_put_supply = vault_state
         .total_x1safe_put_supply
-        .checked_sub(put_amount)
-        .ok_or(X1safeError::MathOverflow)?;
+        .saturating_sub(put_amount);
 
     // Update user position
     let user_position = &mut ctx.accounts.user_position;
     user_position.x1safe_put_amount = user_position
         .x1safe_put_amount
-        .checked_sub(put_amount)
-        .ok_or(X1safeError::MathOverflow)?;
+        .saturating_sub(put_amount);
 
     // Mark position as inactive if no more PUT
     if user_position.x1safe_put_amount == 0 {

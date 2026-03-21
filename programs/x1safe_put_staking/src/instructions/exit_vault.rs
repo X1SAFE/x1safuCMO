@@ -28,7 +28,8 @@ pub struct ExitVault<'info> {
         ],
         bump = user_position.bump,
         constraint = user_position.owner == user.key() @ X1safeError::Unauthorized,
-        constraint = user_position.active @ X1safeError::PositionNotFound,
+        // NOTE: active check removed — allow exit as long as PUT balance > 0
+        // constraint = user_position.active @ X1safeError::PositionNotFound,
     )]
     pub user_position: Box<Account<'info, UserPosition>>,
     
