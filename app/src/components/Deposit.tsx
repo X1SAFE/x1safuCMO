@@ -156,10 +156,11 @@ export function Deposit() {
       lockBuf.writeUInt16LE(lockDays)
       const data = Buffer.concat([discBuf, amountBuf, lockBuf])
 
-      // Account order matches Deposit<'info> struct in deposit.rs:
-      // user, vault_state, supported_token, token_mint, user_token_account,
-      // vault_token_account, x1safe_put_mint, user_x1safe_put_account,
-      // user_position, oracle, system_program, token_program, rent
+      // Account order matches Deposit<'info> struct in deposit.rs exactly:
+      // user, vault_state, supported_token, token_mint,
+      // user_token_account, vault_token_account,
+      // x1safe_put_mint, user_x1safe_put_account,
+      // user_position (init), oracle, system_program, token_program, rent
       tx.add(new TransactionInstruction({
         programId: STAKING_PROGRAM_ID,
         keys: [
@@ -171,11 +172,11 @@ export function Deposit() {
           { pubkey: tokenVault,              isSigner: false, isWritable: true  }, // vault_token_account
           { pubkey: putMint,                 isSigner: false, isWritable: true  }, // x1safe_put_mint
           { pubkey: userPutAta,              isSigner: false, isWritable: true  }, // user_x1safe_put_account
-          { pubkey: userPosition,            isSigner: false, isWritable: true  }, // user_position
+          { pubkey: userPosition,            isSigner: false, isWritable: true  }, // user_position (init)
           { pubkey: oracle,                  isSigner: false, isWritable: false }, // oracle
-          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-          { pubkey: TOKEN_PROGRAM_ID,        isSigner: false, isWritable: false },
-          { pubkey: SYSVAR_RENT_PUBKEY,      isSigner: false, isWritable: false },
+          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false }, // system_program
+          { pubkey: TOKEN_PROGRAM_ID,        isSigner: false, isWritable: false }, // token_program
+          { pubkey: SYSVAR_RENT_PUBKEY,      isSigner: false, isWritable: false }, // rent
         ],
         data,
       }))
