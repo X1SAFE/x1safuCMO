@@ -97,7 +97,7 @@ function parseVestingSchedule(data: Buffer): VestingInfo {
   const VESTING_PHASE_LEN = 26 // 1+8+8+8+1
   const phases: VestingPhase[] = []
   let offset = 8 + 32 + 8 + 8 + 8 + 1 + 8 // = 73
-  const current_phase = data[73 - 8 - 1]     // current_phase at 64
+  // current_phase unused     // current_phase at 64
   for (let i = 0; i < 6; i++) {
     const base = offset + i * VESTING_PHASE_LEN
     phases.push({
@@ -397,7 +397,7 @@ export function Stake() {
                 {vestingInfo.phases.map((p, i) => {
                   const isUnlocked = now >= p.end_time
                   const isActive   = now >= p.start_time && now < p.end_time
-                  const isPending  = now < p.start_time
+                  const _isPending  = now < p.start_time
                   return (
                     <div key={i} style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
