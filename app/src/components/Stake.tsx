@@ -1,288 +1,174 @@
 import { useState, useEffect } from 'react'
-import { useConnection, useWallet, useAnchorWallet } from '@solana/wallet-adapter-react'
-import { AnchorProvider } from '@coral-xyz/anchor'
+import { useConnection, useWallet } from '@solana/wallet-adapter-react'
 import {
-  getAssociatedTokenAddress, createAssociatedTokenAccountInstruction,
-  getAccount, TOKEN_PROGRAM_ID,
-} from '@solana/spl-token'
-import {
-  Transaction, TransactionInstruction, PublicKey,
-  SystemProgram, SYSVAR_RENT_PUBKEY,
+  Transaction, SystemProgram, SYSVAR_RENT_PUBKEY,
+  TransactionInstruction, PublicKey,
 } from '@solana/web3.js'
+import {
+  TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync,
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+} from '@solana/spl-token'
 import { sha256 } from '@noble/hashes/sha256'
 import {
-  EXPLORER, IS_TESTNET, PROGRAM_ID,
-  getProgram, getStakingProgram, loadStakingIDL,
-  getVaultPDA, getPutMintPDA, getSafeMintPDA, getSx1safeMintPDA,
-  getStakePoolPDA, getStakeReservePDA, getRewardReservePDA,
-  getUserStakePDA, getUserPositionPDA,
-  fetchStakePool, fetchUserStake, getTokenBalance, toBaseUnits,
+  STAKING_PROGRAM_ID, STAKING_VAULT_STATE,
+  STAKING_X1SAFE_MINT, STAKING_X1SAFE_PUT_MINT, STAKING_STAKE_VAULT,
+  EXPLORER, IS_TESTNET, MINTS,
+  getTokenBalance, toBaseUnits,
 } from '../lib/vault'
 
 function disc(name: string): Buffer {
   return Buffer.from(sha256(new TextEncoder().encode('global:' + name))).subarray(0, 8)
 }
 
-// Source type: stake from PUT receipt or from free X1SAFE
-type StakeSource = 'put' | 'free'
-type Mode = 'stake' | 'unstake'
+function createATAInstruction(payer: PublicKey, ata: PublicKey, owner: PublicKey, mint: PublicKey) {
+  return new TransactionInstruction({
+    programId: ASSOCIATED_TOKEN_PROGRAM_ID,
+    keys: [
+      { pubkey: payer,                   isSigner: true,  isWritable: true  },
+      { pubkey: ata,                     isSigner: false, isWritable: true  },
+      { pubkey: owner,                   isSigner: false, isWritable: false },
+      { pubkey: mint,                    isSigner: false, isWritable: false },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+      { pubkey: TOKEN_PROGRAM_ID,        isSigner: false, isWritable: false },
+      { pubkey: SYSVAR_RENT_PUBKEY,      isSigner: false, isWritable: false },
+    ],
+    data: Buffer.from([0]),
+  })
+}
+
+const USER_POSITION_SEED    = Buffer.from('user_position')
+const STAKE_ACCOUNT_SEED    = Buffer.from('stake_account')
+const VESTING_SCHEDULE_SEED = Buffer.from('vesting_schedule')
+const REWARD_POOL_SEED      = Buffer.from('reward_pool')
+
+function getUserPositionPDA(user: PublicKey, tokenMint: PublicKey) {
+  return PublicKey.findProgramAddressSync(
+    [USER_POSITION_SEED, user.toBuffer(), tokenMint.toBuffer()], STAKING_PROGRAM_ID)[0]
+}
+function getStakeAccountPDA(user: PublicKey, tokenMint: PublicKey) {
+  return PublicKey.findProgramAddressSync(
+    [STAKE_ACCOUNT_SEED, user.toBuffer(), tokenMint.toBuffer()], STAKING_PROGRAM_ID)[0]
+}
+function getVestingSchedulePDA(user: PublicKey, tokenMint: PublicKey) {
+  return PublicKey.findProgramAddressSync(
+    [VESTING_SCHEDULE_SEED, user.toBuffer(), tokenMint.toBuffer()], STAKING_PROGRAM_ID)[0]
+}
+function getRewardPoolAta(vaultState: PublicKey) {
+  return getAssociatedTokenAddressSync(STAKING_X1SAFE_MINT, vaultState, true, TOKEN_PROGRAM_ID)
+}
+
+const DEPOSIT_MINTS = [MINTS.XNT, MINTS.USDCX]
 
 export function Stake() {
   const { connection } = useConnection()
-  const wallet         = useWallet()
-  const anchorWallet   = useAnchorWallet()
+  const wallet = useWallet()
 
-  const [mode,        setMode]       = useState<Mode>('stake')
-  const [source,      setSource]     = useState<StakeSource>('put')
-  const [amount,      setAmount]     = useState('')
-  const [loading,     setLoading]    = useState(false)
-  const [txSig,       setTxSig]      = useState('')
-  const [error,       setError]      = useState('')
-  const [putBalance,  setPutBalance] = useState(0)
-  const [safeBalance, setSafeBalance]= useState(0)
-  const [sxBalance,   setSxBalance]  = useState(0)
-  const [stakePool,   setStakePool]  = useState<any>(null)
-  const [userStake,   setUserStake]  = useState<any>(null)
+  const [stakeAmount,   setStakeAmount]   = useState('')
+  const [loading,       setLoading]       = useState(false)
+  const [txSig,         setTxSig]         = useState('')
+  const [error,         setError]         = useState('')
+  const [putBalance,    setPutBalance]    = useState(0)
+  const [safeBalance,   setSafeBalance]   = useState(0)
+  const [stakedBalance, setStakedBalance] = useState(0)
+  const [showConfirm,   setShowConfirm]   = useState(false)
+  const [depositMint,   setDepositMint]   = useState<PublicKey>(MINTS.XNT)
+  const [hasStake,      setHasStake]      = useState(false)
 
-  const numAmt = parseFloat(amount) || 0
-  const maxBal = mode === 'unstake' ? sxBalance : (source === 'put' ? putBalance : safeBalance)
+  const numAmt = parseFloat(stakeAmount) || 0
 
   const load = async () => {
     if (!wallet.publicKey) return
-    const putMint  = getPutMintPDA()
-    const safeMint = getSafeMintPDA()
-    const sx1sMint = getSx1safeMintPDA()
-    const [put, safe, sx, pool, stake] = await Promise.all([
-      getTokenBalance(connection, wallet.publicKey, putMint),
-      getTokenBalance(connection, wallet.publicKey, safeMint),
-      getTokenBalance(connection, wallet.publicKey, sx1sMint),
-      fetchStakePool(connection),
-      fetchUserStake(connection, wallet.publicKey),
+    const [put, safe] = await Promise.all([
+      getTokenBalance(connection, wallet.publicKey, STAKING_X1SAFE_PUT_MINT),
+      getTokenBalance(connection, wallet.publicKey, STAKING_X1SAFE_MINT),
     ])
     setPutBalance(put)
     setSafeBalance(safe)
-    setSxBalance(sx)
-    setStakePool(pool)
-    setUserStake(stake)
+
+    // Find active user_position and stake_account
+    for (const mint of DEPOSIT_MINTS) {
+      const pos = getUserPositionPDA(wallet.publicKey, mint)
+      const info = await connection.getAccountInfo(pos)
+      if (info) {
+        setDepositMint(mint)
+        // Check if stake account exists
+        const stakePda = getStakeAccountPDA(wallet.publicKey, mint)
+        const stakeInfo = await connection.getAccountInfo(stakePda)
+        setHasStake(!!stakeInfo)
+        if (stakeInfo) {
+          // Parse amount_staked (u64 at offset 8+32 = 40)
+          const staked = Number(stakeInfo.data.readBigUInt64LE(40)) / 1e6
+          setStakedBalance(staked)
+        }
+        break
+      }
+    }
   }
 
   useEffect(() => { load() }, [wallet.publicKey, connection, txSig])
 
-  // ── Stake: withdraw PUT→FREE then stake FREE→sX1SAFE (1 tx) ──────────────
-  const handleStakePUT = async () => {
-    if (!wallet.publicKey || !wallet.signTransaction || !anchorWallet || !amount) return
+  const handleStake = async () => {
+    if (!wallet.publicKey || !wallet.signTransaction || !stakeAmount) return
+    if (hasStake) { setError('Bạn đã có stake active. Unstake trước rồi stake lại.'); return }
     setLoading(true); setError(''); setTxSig('')
     try {
-      await loadStakingIDL()
-      const provider   = new AnchorProvider(connection, anchorWallet, { commitment: 'confirmed' })
-      const mainProg   = getProgram(provider)
-      const stakeProg  = getStakingProgram(provider)
+      const vaultState       = STAKING_VAULT_STATE
+      const putMint          = STAKING_X1SAFE_PUT_MINT
+      const stakeVault       = STAKING_STAKE_VAULT
+      const userPosition     = getUserPositionPDA(wallet.publicKey, depositMint)
+      const stakeAccount     = getStakeAccountPDA(wallet.publicKey, depositMint)
+      const vestingSchedule  = getVestingSchedulePDA(wallet.publicKey, depositMint)
 
-      const vault       = getVaultPDA()
-      const putMint     = getPutMintPDA()
-      const safeMint    = getSafeMintPDA()
-      const sx1safeMint = getSx1safeMintPDA()
-      const stakePoolPK = getStakePoolPDA()
-      const stakeRsv    = getStakeReservePDA()
-      const userPos     = getUserPositionPDA(wallet.publicKey)
-      const userStakePK = getUserStakePDA(wallet.publicKey)
+      const userPutAta = getAssociatedTokenAddressSync(putMint, wallet.publicKey, false, TOKEN_PROGRAM_ID)
 
-      const userPutAta    = await getAssociatedTokenAddress(putMint,     wallet.publicKey, false, TOKEN_PROGRAM_ID)
-      const userSafeAta   = await getAssociatedTokenAddress(safeMint,    wallet.publicKey, false, TOKEN_PROGRAM_ID)
-      const userSx1sAta   = await getAssociatedTokenAddress(sx1safeMint, wallet.publicKey, false, TOKEN_PROGRAM_ID)
+      // Build stake instruction
+      // Args: amount: u64 (8 bytes)
+      const discBuf = disc('stake')
+      const amtBuf  = Buffer.allocUnsafe(8)
+      amtBuf.writeBigUInt64LE(BigInt(toBaseUnits(numAmt, 6).toString()))
+      const data = Buffer.concat([discBuf, amtBuf])
 
-      const amountBN = toBaseUnits(numAmt, 9) // PUT has 9 decimals
-
+      // Account order matches Stake<'info>:
+      // user, vault_state, user_position, token_mint,
+      // user_x1safe_put_account, stake_vault, stake_account,
+      // vesting_schedule, system_program, token_program, rent
       const tx = new Transaction()
-
-      // Ensure X1SAFE_FREE ATA exists (needed to receive from withdraw)
-      try { await getAccount(connection, userSafeAta, undefined, TOKEN_PROGRAM_ID) } catch {
-        tx.add(createAssociatedTokenAccountInstruction(
-          wallet.publicKey, userSafeAta, wallet.publicKey, safeMint, TOKEN_PROGRAM_ID
-        ))
-      }
-
-      // Ensure sX1SAFE ATA exists (needed to receive from stake)
-      try { await getAccount(connection, userSx1sAta, undefined, TOKEN_PROGRAM_ID) } catch {
-        tx.add(createAssociatedTokenAccountInstruction(
-          wallet.publicKey, userSx1sAta, wallet.publicKey, sx1safeMint, TOKEN_PROGRAM_ID
-        ))
-      }
-
-      // Instruction 1: withdraw PUT → X1SAFE FREE (burn PUT, mint SAFE)
-      const withdrawIx = await mainProg.methods
-        .withdraw(amountBN)
-        .accounts({
-          user: wallet.publicKey,
-          vault,
-          putMint,
-          safeMint,
-          userPutAccount:  userPutAta,
-          userSafeAccount: userSafeAta,
-          userPosition:    userPos,
-        })
-        .instruction()
-      tx.add(withdrawIx)
-
-      // Instruction 2: stake X1SAFE FREE → sX1SAFE
-      const stakeIx = await stakeProg.methods
-        .stake(amountBN)
-        .accounts({
-          user:       wallet.publicKey,
-          stakePool:  stakePoolPK,
-          userStake:  userStakePK,
-          sx1safeMint,
-          userX1safe:  userSafeAta,
-          userSx1safe: userSx1sAta,
-          stakeReserve: stakeRsv,
-        })
-        .instruction()
-      tx.add(stakeIx)
+      tx.add(new TransactionInstruction({
+        programId: STAKING_PROGRAM_ID,
+        keys: [
+          { pubkey: wallet.publicKey,        isSigner: true,  isWritable: true  }, // user
+          { pubkey: vaultState,              isSigner: false, isWritable: true  }, // vault_state
+          { pubkey: userPosition,            isSigner: false, isWritable: true  }, // user_position
+          { pubkey: depositMint,             isSigner: false, isWritable: false }, // token_mint
+          { pubkey: userPutAta,              isSigner: false, isWritable: true  }, // user_x1safe_put_account
+          { pubkey: stakeVault,              isSigner: false, isWritable: true  }, // stake_vault
+          { pubkey: stakeAccount,            isSigner: false, isWritable: true  }, // stake_account (init)
+          { pubkey: vestingSchedule,         isSigner: false, isWritable: true  }, // vesting_schedule (init)
+          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+          { pubkey: TOKEN_PROGRAM_ID,        isSigner: false, isWritable: false },
+          { pubkey: SYSVAR_RENT_PUBKEY,      isSigner: false, isWritable: false },
+        ],
+        data,
+      }))
 
       tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash
       tx.feePayer = wallet.publicKey
       const signed = await wallet.signTransaction(tx)
-      const sig = await connection.sendRawTransaction(signed.serialize())
+      const sig    = await connection.sendRawTransaction(signed.serialize())
       await connection.confirmTransaction(sig, 'confirmed')
-      setTxSig(sig)
-      setAmount('')
+      setTxSig(sig); setStakeAmount(''); setShowConfirm(false)
     } catch (e: any) {
       setError(e?.message || 'Transaction failed')
     } finally { setLoading(false) }
   }
-
-  // ── Stake: stake X1SAFE FREE → sX1SAFE directly ──────────────────────────
-  const handleStakeFREE = async () => {
-    if (!wallet.publicKey || !anchorWallet || !amount) return
-    setLoading(true); setError(''); setTxSig('')
-    try {
-      await loadStakingIDL()
-      const provider    = new AnchorProvider(connection, anchorWallet, { commitment: 'confirmed' })
-      const program     = getStakingProgram(provider)
-      const sx1safeMint = getSx1safeMintPDA()
-      const safeMint    = getSafeMintPDA()
-      const stakePoolPK = getStakePoolPDA()
-      const stakeRsv    = getStakeReservePDA()
-      const userStakePK = getUserStakePDA(wallet.publicKey)
-
-      const userX1safe  = await getAssociatedTokenAddress(safeMint,    wallet.publicKey, false, TOKEN_PROGRAM_ID)
-      const userSx1safe = await getAssociatedTokenAddress(sx1safeMint, wallet.publicKey, false, TOKEN_PROGRAM_ID)
-
-      const tx = new Transaction()
-      try { await getAccount(connection, userSx1safe, undefined, TOKEN_PROGRAM_ID) } catch {
-        tx.add(createAssociatedTokenAccountInstruction(
-          wallet.publicKey, userSx1safe, wallet.publicKey, sx1safeMint, TOKEN_PROGRAM_ID
-        ))
-      }
-
-      const stakeIx = await program.methods
-        .stake(toBaseUnits(numAmt, 9))
-        .accounts({
-          user:       wallet.publicKey,
-          stakePool:  stakePoolPK,
-          userStake:  userStakePK,
-          sx1safeMint,
-          userX1safe,
-          userSx1safe,
-          stakeReserve: stakeRsv,
-        })
-        .instruction()
-      tx.add(stakeIx)
-
-      tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash
-      tx.feePayer = wallet.publicKey
-      const signed = await wallet.signTransaction!(tx)
-      const sig = await connection.sendRawTransaction(signed.serialize())
-      await connection.confirmTransaction(sig, 'confirmed')
-      setTxSig(sig)
-      setAmount('')
-    } catch (e: any) {
-      setError(e?.message || 'Transaction failed')
-    } finally { setLoading(false) }
-  }
-
-  // ── Unstake: sX1SAFE → X1SAFE FREE ───────────────────────────────────────
-  const handleUnstake = async () => {
-    if (!wallet.publicKey || !anchorWallet || !amount) return
-    setLoading(true); setError(''); setTxSig('')
-    try {
-      await loadStakingIDL()
-      const provider     = new AnchorProvider(connection, anchorWallet, { commitment: 'confirmed' })
-      const program      = getStakingProgram(provider)
-      const sx1safeMint  = getSx1safeMintPDA()
-      const safeMint     = getSafeMintPDA()
-      const stakePoolPK  = getStakePoolPDA()
-      const stakeRsv     = getStakeReservePDA()
-      const rewardRsv    = getRewardReservePDA()
-      const userStakePK  = getUserStakePDA(wallet.publicKey)
-
-      const userX1safe  = await getAssociatedTokenAddress(safeMint,    wallet.publicKey, false, TOKEN_PROGRAM_ID)
-      const userSx1safe = await getAssociatedTokenAddress(sx1safeMint, wallet.publicKey, false, TOKEN_PROGRAM_ID)
-
-      const tx = await program.methods
-        .unstake(toBaseUnits(numAmt, 9))
-        .accounts({
-          user:          wallet.publicKey,
-          stakePool:     stakePoolPK,
-          userStake:     userStakePK,
-          sx1safeMint,
-          userX1safe,
-          userSx1safe,
-          stakeReserve:  stakeRsv,
-          rewardReserve: rewardRsv,
-        })
-        .rpc()
-
-      setTxSig(tx)
-      setAmount('')
-    } catch (e: any) {
-      setError(e?.message || 'Transaction failed')
-    } finally { setLoading(false) }
-  }
-
-  // ── Claim rewards ─────────────────────────────────────────────────────────
-  const handleClaimRewards = async () => {
-    if (!wallet.publicKey || !anchorWallet) return
-    setLoading(true); setError(''); setTxSig('')
-    try {
-      await loadStakingIDL()
-      const provider      = new AnchorProvider(connection, anchorWallet, { commitment: 'confirmed' })
-      const program       = getStakingProgram(provider)
-      const safeMint      = getSafeMintPDA()
-      const stakePoolPK   = getStakePoolPDA()
-      const rewardRsv     = getRewardReservePDA()
-      const userStakePK   = getUserStakePDA(wallet.publicKey)
-      const userX1safe    = await getAssociatedTokenAddress(safeMint, wallet.publicKey, false, TOKEN_PROGRAM_ID)
-
-      const tx = await program.methods
-        .claimRewards()
-        .accounts({
-          user:          wallet.publicKey,
-          stakePool:     stakePoolPK,
-          userStake:     userStakePK,
-          userX1safe,
-          rewardReserve: rewardRsv,
-        })
-        .rpc()
-
-      setTxSig(tx)
-    } catch (e: any) {
-      setError(e?.message || 'Transaction failed')
-    } finally { setLoading(false) }
-  }
-
-  const apyPct      = stakePool ? (stakePool.apyBps / 100).toFixed(1) : '—'
-  const totalStaked = stakePool ? (stakePool.totalStaked / 1e9).toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—'
-  const myStaked    = userStake ? (userStake.stakedAmount / 1e9).toFixed(4) : '0'
-  const pending     = userStake ? (userStake.rewardsPending / 1e9).toFixed(6) : '0'
 
   if (!wallet.connected) {
     return (
       <div className="tab-content">
         <div className="empty-state">
-          <div className="empty-state-icon">🔐</div>
+          <div className="empty-state-icon">⚡</div>
           <div className="empty-state-text">Connect Wallet to Stake</div>
-          <div className="empty-state-sub">Connect your wallet to stake X1SAFE_PUT.</div>
+          <div className="empty-state-sub">Stake X1SAFE_PUT to earn rewards from the Exit pool.</div>
         </div>
       </div>
     )
@@ -291,259 +177,158 @@ export function Stake() {
   return (
     <div className="tab-content">
 
-      {/* ── Page title ── */}
       <div style={{ marginBottom: 16 }}>
-        <div className="page-title" style={{ fontSize: '1.15rem', fontWeight: 800 }}>Stake</div>
-        <div className="page-subtitle">Stake X1SAFE_PUT or X1SAFE → earn yield as sX1SAFE</div>
+        <div className="page-title" style={{ fontSize: '1.15rem', fontWeight: 800 }}>Stake PUT</div>
+        <div className="page-subtitle">Lock X1SAFE_PUT → earn X1SAFE từ reward pool</div>
       </div>
 
-      {/* ── Pool stats ── */}
-      <div className="stats-grid" style={{ marginBottom: 14 }}>
-        <div className="stat-card">
-          <div className="stat-label">APY</div>
-          <div className="stat-value" style={{ color: 'var(--success)' }}>{apyPct}%</div>
-          <div className="stat-sub">Annual yield</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Total Staked</div>
-          <div className="stat-value" style={{ fontSize: '1.1rem' }}>{totalStaked}</div>
-          <div className="stat-sub">X1SAFE locked</div>
-        </div>
+      {/* ── Info ── */}
+      <div style={{
+        marginBottom: 14, padding: '12px 14px',
+        background: 'rgba(234,179,8,0.04)', border: '1px solid rgba(234,179,8,0.15)',
+        borderRadius: 'var(--radius)', fontSize: '0.78rem', color: 'var(--text-2)', lineHeight: 1.6,
+      }}>
+        <div style={{ fontWeight: 700, marginBottom: 6, color: 'var(--warning, #eab308)' }}>⚡ Staking = earn từ Exit pool</div>
+        <div>• Mỗi lần user Exit → X1SAFE mint vào reward pool</div>
+        <div>• Stakers chia sẻ pool theo tỉ lệ stake</div>
+        <div>• Claim rewards mỗi 7 ngày (vesting 6 tranches)</div>
       </div>
 
-      {/* ── User position ── */}
-      <div className="card" style={{ marginBottom: 14 }}>
-        <div className="card-header">
-          <div className="card-title">Your Position</div>
-          {parseFloat(pending) > 0 && (
-            <button
-              className="btn btn-sm"
-              style={{ background: 'rgba(34,197,94,0.08)', color: 'var(--success)', border: '1px solid rgba(34,197,94,0.2)' }}
-              onClick={handleClaimRewards}
-              disabled={loading}
-            >
-              Claim {parseFloat(pending).toFixed(4)}
-            </button>
-          )}
+      {/* ── Balance cards ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+        <div style={{
+          background: putBalance > 0 ? 'linear-gradient(135deg,rgba(147,51,234,.07),rgba(147,51,234,.02))' : 'var(--bg-elevated)',
+          border: `1px solid ${putBalance > 0 ? 'rgba(147,51,234,.25)' : 'var(--border)'}`,
+          borderRadius: 'var(--radius)', padding: 14,
+        }}>
+          <div style={{ fontSize: '0.6rem', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 4 }}>Available PUT</div>
+          <div style={{ fontSize: '1.3rem', fontWeight: 800, color: putBalance > 0 ? 'var(--xnt-color)' : 'var(--text-3)' }}>{putBalance.toFixed(2)}</div>
+          <div style={{ fontSize: '0.6rem', color: 'var(--text-3)', marginTop: 3 }}>Stakeable</div>
         </div>
-        <div className="stats-grid" style={{ margin: 0 }}>
-          {[
-            { label: 'PUT',        val: putBalance.toFixed(2),  sub: 'unstaked receipt',   color: 'var(--xnt-color)' },
-            { label: 'X1SAFE',     val: safeBalance.toFixed(2), sub: 'free / stakeable',   color: 'var(--success)' },
-            { label: 'sX1SAFE',    val: sxBalance.toFixed(4),   sub: 'staked receipt',     color: 'var(--text-2)' },
-            { label: 'Rewards',    val: pending,                sub: 'pending X1SAFE',     color: parseFloat(pending) > 0 ? 'var(--success)' : undefined },
-          ].map(s => (
-            <div key={s.label} className="stat-card" style={{ background: 'transparent', border: 'none', padding: '8px 0' }}>
-              <div className="stat-label">{s.label}</div>
-              <div className="stat-value" style={{ fontSize: '1rem', color: s.color }}>{s.val}</div>
-              <div className="stat-sub">{s.sub}</div>
-            </div>
-          ))}
+        <div style={{
+          background: stakedBalance > 0 ? 'linear-gradient(135deg,rgba(234,179,8,.07),rgba(234,179,8,.02))' : 'var(--bg-elevated)',
+          border: `1px solid ${stakedBalance > 0 ? 'rgba(234,179,8,.25)' : 'var(--border)'}`,
+          borderRadius: 'var(--radius)', padding: 14,
+        }}>
+          <div style={{ fontSize: '0.6rem', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 4 }}>Currently Staked</div>
+          <div style={{ fontSize: '1.3rem', fontWeight: 800, color: stakedBalance > 0 ? '#eab308' : 'var(--text-3)' }}>{stakedBalance.toFixed(2)}</div>
+          <div style={{ fontSize: '0.6rem', color: 'var(--text-3)', marginTop: 3 }}>Earning rewards</div>
         </div>
       </div>
 
-      {/* ── Mode toggle: Stake / Unstake ── */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-        <button
-          className={`btn btn-full${mode === 'stake' ? ' btn-primary' : ' btn-secondary'}`}
-          onClick={() => { setMode('stake'); setAmount('') }}
-        >⬡ Stake</button>
-        <button
-          className={`btn btn-full${mode === 'unstake' ? ' btn-primary' : ' btn-secondary'}`}
-          onClick={() => { setMode('unstake'); setAmount('') }}
-        >↩ Unstake</button>
-      </div>
-
-      {/* ── Source selector (stake mode only) ── */}
-      {mode === 'stake' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
-          {/* Stake from PUT */}
-          <button
-            onClick={() => { setSource('put'); setAmount('') }}
-            style={{
-              padding: '12px 14px',
-              borderRadius: 'var(--radius)',
-              border: `1.5px solid ${source === 'put' ? 'var(--xnt-color)' : 'var(--border)'}`,
-              background: source === 'put' ? 'rgba(168,85,247,0.06)' : 'var(--bg-elevated)',
-              cursor: 'pointer', textAlign: 'left',
-              transition: 'all 0.15s',
-            }}
-          >
-            <div style={{ fontSize: '0.65rem', color: 'var(--text-3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
-              From X1SAFE_PUT
-            </div>
-            <div style={{ fontSize: '1.1rem', fontWeight: 800, color: source === 'put' ? 'var(--xnt-color)' : 'var(--text)', letterSpacing: '-0.02em' }}>
-              {putBalance.toFixed(2)}
-            </div>
-            <div style={{ fontSize: '0.62rem', color: 'var(--text-3)', marginTop: 3 }}>
-              Auto-unlocks PUT → stakes in 1 tx
-            </div>
-          </button>
-
-          {/* Stake from FREE */}
-          <button
-            onClick={() => { setSource('free'); setAmount('') }}
-            style={{
-              padding: '12px 14px',
-              borderRadius: 'var(--radius)',
-              border: `1.5px solid ${source === 'free' ? 'var(--success)' : 'var(--border)'}`,
-              background: source === 'free' ? 'rgba(34,197,94,0.06)' : 'var(--bg-elevated)',
-              cursor: 'pointer', textAlign: 'left',
-              transition: 'all 0.15s',
-            }}
-          >
-            <div style={{ fontSize: '0.65rem', color: 'var(--text-3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
-              From X1SAFE (free)
-            </div>
-            <div style={{ fontSize: '1.1rem', fontWeight: 800, color: source === 'free' ? 'var(--success)' : 'var(--text)', letterSpacing: '-0.02em' }}>
-              {safeBalance.toFixed(2)}
-            </div>
-            <div style={{ fontSize: '0.62rem', color: 'var(--text-3)', marginTop: 3 }}>
-              Direct stake
-            </div>
-          </button>
+      {safeBalance > 0 && (
+        <div style={{
+          marginBottom: 14, padding: '10px 14px',
+          background: 'rgba(34,197,94,.04)', border: '1px solid rgba(34,197,94,.15)',
+          borderRadius: 'var(--radius)', display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem',
+        }}>
+          <span style={{ color: 'var(--text-3)' }}>X1SAFE earned (claimable)</span>
+          <span style={{ color: 'var(--success)', fontWeight: 700 }}>{safeBalance.toFixed(4)} X1SAFE</span>
         </div>
       )}
 
-      {/* ── Amount input ── */}
-      <div className="amount-input-block" style={{ marginBottom: 14 }}>
-        <div className="amount-input-row">
-          <input
-            type="number"
-            className="amount-input-big"
-            placeholder="0.00"
-            value={amount}
-            min="0"
-            step="any"
-            onChange={e => { setAmount(e.target.value); setError(''); setTxSig('') }}
-          />
-          <div className="amount-input-asset" style={{ color: mode === 'unstake' ? 'var(--text-2)' : source === 'put' ? 'var(--xnt-color)' : 'var(--success)' }}>
-            {mode === 'unstake' ? 'sX1SAFE' : source === 'put' ? 'PUT' : 'X1SAFE'}
-          </div>
+      {hasStake && (
+        <div className="info-box warning" style={{ marginBottom: 14, fontSize: '0.78rem' }}>
+          ⚠️ Bạn đã có stake active ({stakedBalance.toFixed(4)} PUT). Unstake trước rồi mới stake lại được.
         </div>
-        <div className="amount-input-footer">
-          <span className="amount-usd">
-            {numAmt > 0
-              ? mode === 'unstake'
-                ? `→ ${numAmt.toFixed(4)} X1SAFE + rewards`
-                : source === 'put'
-                  ? `Unlock PUT → Stake ${numAmt.toFixed(4)} → sX1SAFE`
-                  : `→ ${numAmt.toFixed(4)} sX1SAFE`
-              : 'Enter amount'}
-          </span>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button className="amount-max-btn" onClick={() => setAmount((maxBal / 2).toFixed(6))} disabled={maxBal === 0}>HALF</button>
-            <button className="amount-max-btn" onClick={() => setAmount(maxBal.toFixed(6))} disabled={maxBal === 0}>MAX</button>
-          </div>
-        </div>
-        <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border-soft)', display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-3)' }}>
-          <span>Balance</span>
-          <span style={{ fontWeight: 600 }}>{maxBal.toFixed(4)} {mode === 'unstake' ? 'sX1SAFE' : source === 'put' ? 'PUT' : 'X1SAFE'}</span>
-        </div>
-      </div>
+      )}
 
-      {/* ── Conversion card ── */}
-      {numAmt > 0 && (
-        <div className="conversion-card" style={{ marginBottom: 14 }}>
-          {mode === 'stake' && source === 'put' && (
-            <>
+      {putBalance === 0 && !hasStake && (
+        <div className="info-box warning" style={{ marginBottom: 14, fontSize: '0.78rem' }}>
+          ⚠️ Không có X1SAFE_PUT. Hãy <strong>Deposit</strong> collateral trước.
+        </div>
+      )}
+
+      {/* ── Stake amount input ── */}
+      {!hasStake && (
+        <>
+          <div className="form-label" style={{ marginBottom: 8 }}>Amount to Stake</div>
+          <div className="amount-input-block" style={{ marginBottom: 14 }}>
+            <div className="amount-input-row">
+              <input type="number" className="amount-input-big" placeholder="0.00"
+                value={stakeAmount} min="0" step="any"
+                disabled={putBalance === 0}
+                onChange={e => { setStakeAmount(e.target.value); setError(''); setTxSig(''); setShowConfirm(false) }}
+                style={{ color: numAmt > 0 ? 'var(--xnt-color)' : undefined }}
+              />
+              <div className="amount-input-asset" style={{ color: 'var(--xnt-color)' }}>PUT</div>
+            </div>
+            <div className="amount-input-footer">
+              <span className="amount-usd">{numAmt > 0 ? `${numAmt.toFixed(4)} PUT → staking` : 'Enter amount'}</span>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button className="amount-max-btn" onClick={() => { setStakeAmount((putBalance / 2).toFixed(6)); setShowConfirm(false) }} disabled={putBalance === 0}>HALF</button>
+                <button className="amount-max-btn" onClick={() => { setStakeAmount(putBalance.toFixed(6)); setShowConfirm(false) }} disabled={putBalance === 0}>MAX</button>
+              </div>
+            </div>
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border-soft)', display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-3)' }}>
+              <span>PUT Balance</span>
+              <span style={{ color: putBalance > 0 ? 'var(--xnt-color)' : undefined, fontWeight: 600 }}>{putBalance.toFixed(4)} PUT</span>
+            </div>
+          </div>
+
+          {numAmt > 0 && (
+            <div className="conversion-card" style={{ marginBottom: 14 }}>
               <div className="conversion-row">
-                <span className="label">🔥 Unlock (burn)</span>
+                <span className="label">⚡ Stake</span>
                 <span className="value" style={{ color: 'var(--xnt-color)' }}>{numAmt.toFixed(4)} X1SAFE_PUT</span>
               </div>
               <div className="conversion-row">
-                <span className="label">⬡ Auto-stake</span>
-                <span className="value" style={{ color: 'var(--success)' }}>{numAmt.toFixed(4)} X1SAFE → sX1SAFE</span>
+                <span className="label">Rewards từ</span>
+                <span className="value">Exit pool (X1SAFE)</span>
               </div>
-            </>
-          )}
-          {mode === 'stake' && source === 'free' && (
-            <div className="conversion-row">
-              <span className="label">⬡ Stake</span>
-              <span className="value" style={{ color: 'var(--success)' }}>{numAmt.toFixed(4)} X1SAFE → sX1SAFE</span>
+              <div className="conversion-row">
+                <span className="label">Claim schedule</span>
+                <span className="value">6 tranches × 7 ngày</span>
+              </div>
+              <div style={{ marginTop: 8, fontSize: '0.68rem', color: 'var(--text-3)' }}>
+                PUT bị lock trong stake vault · Claim từng tranche mỗi 7 ngày
+              </div>
             </div>
           )}
-          {mode === 'unstake' && (
-            <div className="conversion-row">
-              <span className="label">↩ Unstake</span>
-              <span className="value">{numAmt.toFixed(4)} sX1SAFE → X1SAFE + rewards</span>
-            </div>
+
+          {numAmt > putBalance && putBalance > 0 && (
+            <div className="info-box warning" style={{ marginBottom: 14 }}>⚠️ Vượt balance ({putBalance.toFixed(4)} PUT)</div>
           )}
-          <div className="conversion-divider" />
-          <div className="conversion-total">
-            <span className="label">→ You receive</span>
-            <span className="value">
-              {mode === 'unstake'
-                ? `${numAmt.toFixed(4)} X1SAFE + pending rewards`
-                : `${numAmt.toFixed(4)} sX1SAFE`}
-            </span>
-          </div>
-        </div>
+        </>
       )}
 
-      {/* ── Warnings ── */}
-      {mode === 'stake' && source === 'put' && putBalance === 0 && (
-        <div className="info-box warning" style={{ marginBottom: 14 }}>
-          ⚠️ No X1SAFE_PUT — deposit collateral first on the Deposit tab.
-        </div>
-      )}
-      {mode === 'stake' && source === 'free' && safeBalance === 0 && (
-        <div className="info-box warning" style={{ marginBottom: 14 }}>
-          ⚠️ No X1SAFE (free) — go to Withdraw tab to convert PUT → X1SAFE first.
-        </div>
-      )}
-      {mode === 'unstake' && sxBalance === 0 && (
-        <div className="info-box warning" style={{ marginBottom: 14 }}>
-          ⚠️ No sX1SAFE to unstake.
-        </div>
-      )}
-      {numAmt > maxBal && maxBal > 0 && (
-        <div className="info-box warning" style={{ marginBottom: 14 }}>
-          ⚠️ Amount exceeds balance ({maxBal.toFixed(4)})
-        </div>
-      )}
-
-      {/* ── Error / Success ── */}
-      {error && (
-        <div className="info-box danger" style={{ marginBottom: 14 }}>❌ {error}</div>
-      )}
+      {error && <div className="info-box danger" style={{ marginBottom: 14 }}>❌ {error}</div>}
       {txSig && (
         <div className="tx-status success" style={{ marginBottom: 14 }}>
-          <span>✅ {mode === 'stake' ? 'Staked!' : 'Unstaked!'}</span>
+          <span>✅ Staked! PUT đang earn rewards</span>
           <a href={`${EXPLORER}/tx/${txSig}`} target="_blank" rel="noopener noreferrer"
-            style={{ marginLeft: 'auto', fontSize: '0.78rem', color: 'var(--success)', textDecoration: 'none' }}>
-            View ↗
-          </a>
+            style={{ marginLeft: 'auto', fontSize: '0.78rem', color: 'var(--success)', textDecoration: 'none' }}>View ↗</a>
         </div>
       )}
 
-      {/* ── Action button ── */}
-      <button
-        className="btn btn-primary btn-full btn-lg"
-        disabled={loading || !numAmt || numAmt > maxBal}
-        onClick={
-          mode === 'unstake' ? handleUnstake :
-          source === 'put'   ? handleStakePUT :
-                               handleStakeFREE
-        }
-        style={{ fontWeight: 700, letterSpacing: '-0.02em' }}
-      >
-        {loading ? (
-          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>⟳</span>
-            Processing…
-          </span>
-        ) : mode === 'unstake' ? (
-          `Unstake ${numAmt > 0 ? numAmt.toFixed(4) + ' sX1SAFE' : ''}`
-        ) : source === 'put' ? (
-          `Stake PUT ${numAmt > 0 ? numAmt.toFixed(4) : ''} → sX1SAFE`
+      {showConfirm && numAmt > 0 && !error && !hasStake && (
+        <div style={{ padding: '12px 14px', background: 'rgba(234,179,8,.05)', border: '1px solid rgba(234,179,8,.2)', borderRadius: 'var(--radius-sm)', fontSize: '0.82rem', color: '#eab308', fontWeight: 500, marginBottom: 10 }}>
+          ⚡ Stake {numAmt.toFixed(4)} PUT → earn X1SAFE rewards
+        </div>
+      )}
+
+      {!hasStake && (
+        !showConfirm ? (
+          <button className="btn btn-primary btn-full btn-lg"
+            disabled={!numAmt || numAmt > putBalance || putBalance === 0}
+            onClick={() => setShowConfirm(true)}
+            style={{ fontWeight: 700 }}>
+            Stake {numAmt > 0 ? `${numAmt.toFixed(4)} PUT` : ''}
+          </button>
         ) : (
-          `Stake ${numAmt > 0 ? numAmt.toFixed(4) + ' X1SAFE' : ''} → sX1SAFE`
-        )}
-      </button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <button className="btn btn-primary btn-full btn-lg" onClick={handleStake} disabled={loading} style={{ fontWeight: 700 }}>
+              {loading
+                ? <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>⟳</span>Processing…</span>
+                : '✓ Confirm Stake'}
+            </button>
+            <button className="btn btn-secondary btn-full" onClick={() => setShowConfirm(false)} disabled={loading}>Cancel</button>
+          </div>
+        )
+      )}
 
       <div style={{ marginTop: 12, textAlign: 'center', fontSize: '0.7rem', color: 'var(--text-3)' }}>
-        {IS_TESTNET ? '🔶 Testnet' : '🟢 Mainnet'} · sX1SAFE staking pool · APY {apyPct}%
+        {IS_TESTNET ? '🔶 Testnet' : '🟢 Mainnet'} · stake · PUT → vault · earn X1SAFE từ Exit pool
       </div>
 
     </div>

@@ -18,6 +18,8 @@ export const STAKING_PROGRAM_ID  = new PublicKey('8s8JbaAtWtCKSyPfAxEN2vJLJFc3kW
 export const STAKING_X1SAFE_MINT     = new PublicKey('75HZTezD1w2XBeoGJJzQxekayojEXeTgvJks8zWXWtda')
 export const STAKING_X1SAFE_PUT_MINT = new PublicKey('2J1JrRSyj2j93toj4k89buNKN2Z9sFXUmfAWZXWow5VA')
 export const STAKING_VAULT_STATE     = new PublicKey('Cp4SrtaPCmhZhEHWPyeoirrr4uY17Qgvtj1V1gYofcDM')
+// stake_vault: holds staked X1SAFE_PUT (authority=vault_state, created 2026-03-20)
+export const STAKING_STAKE_VAULT     = new PublicKey('GpXMwcFCCkMxM8WEiqPZA5KjBsm9jvKxQvueXfPtTbCV')
 
 // ── Verified X1 Testnet Mint Addresses ─────────────────────────────────────
 export const USDC_X_MINT = new PublicKey('6QNPqoF6GGhCFjTTQGxkpJkrH5ueS85b5RpX3GXdUSVw') // USDC.X 6 decimals
