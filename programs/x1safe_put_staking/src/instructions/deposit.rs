@@ -61,7 +61,7 @@ pub struct Deposit<'info> {
     
     /// User position account (PDA)
     #[account(
-        init,
+        init_if_needed,
         payer = user,
         space = UserPosition::LEN,
         seeds = [

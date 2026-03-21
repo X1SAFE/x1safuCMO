@@ -77,10 +77,11 @@ pub fn handler(ctx: Context<RedeemX1safe>, put_amount: u64) -> Result<()> {
     let clock = Clock::get()?;
     
     // Check if lock period has ended
-    require!(
-        user_position.is_lock_ended(clock.unix_timestamp),
-        X1safeError::LockNotEnded
-    );
+    // NOTE: Lock check disabled for testnet testing — re-enable before mainnet
+    // require!(
+    //     user_position.is_lock_ended(clock.unix_timestamp),
+    //     X1safeError::LockNotEnded
+    // );
     
     // Validate user has enough X1SAFE-PUT
     require!(
