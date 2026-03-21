@@ -1,5 +1,5 @@
 import { Connection, PublicKey, TransactionInstruction } from '@solana/web3.js'
-import { AnchorProvider, Program, BN } from '@coral-xyz/anchor'
+// Anchor removed — all tx built as raw TransactionInstruction
 import { getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID } from '@solana/spl-token'
 
 // ── X1 Testnet Specific Program IDs ───────────────────────────────────────────
@@ -2024,32 +2024,8 @@ export const IDL: any = {
   ]
 }
 
-// ── Program helper ────────────────────────────────────────────────────────────
-export function getProgram(provider: AnchorProvider) {
-  return new Program(IDL, PROGRAM_ID, provider)
-}
-
-// ── Staking Program helper ──────────────────────────────────────────────────
-// Load staking IDL from public folder (will be fetched at runtime)
-let stakingIDL: any = null
-
-export async function loadStakingIDL(): Promise<any> {
-  if (stakingIDL) return stakingIDL
-  try {
-    const response = await fetch('/x1safe_put_staking.json')
-    stakingIDL = await response.json()
-    return stakingIDL
-  } catch (e) {
-    console.error('Failed to load staking IDL:', e)
-    return null
-  }
-}
-
-export function getStakingProgram(provider: AnchorProvider) {
-  // Use a minimal IDL for staking if fetch hasn't completed
-  // The actual IDL will be loaded at runtime
-  return new Program(stakingIDL || IDL, STAKING_PROGRAM_ID, provider)
-}
+// ── Program helpers removed — all tx are raw TransactionInstruction ──────────
+// getProgram / getStakingProgram deleted (Anchor@0.29 IDL format mismatch crash)
 
 // ── Vault state ───────────────────────────────────────────────────────────────
 // Parse VaultState (978 bytes) matching on-chain program
@@ -2240,13 +2216,13 @@ export function calcX1SAFE(assetAmount: number, priceUsd: number): number {
   return assetAmount * priceUsd * X1SAFE_PER_USD
 }
 
-export function toBaseUnits(amount: number, decimals: number): BN {
-  return new BN(Math.floor(amount * 10 ** decimals))
+export function toBaseUnits(amount: number, decimals: number): bigint {
+  return BigInt(Math.floor(amount * 10 ** decimals))
 }
 
 // Price to on-chain format (× 10^6)
-export function toPriceOnChain(priceUsd: number): BN {
-  return new BN(Math.round(priceUsd * 1_000_000))
+export function toPriceOnChain(priceUsd: number): bigint {
+  return BigInt(Math.round(priceUsd * 1_000_000))
 }
 
 // ── X1 Testnet ATA Creation Helper ───────────────────────────────────────────
