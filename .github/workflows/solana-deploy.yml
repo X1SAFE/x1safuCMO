@@ -1,0 +1,197 @@
+name: Build and Deploy X1SAFE Contract
+
+on:
+  workflow_dispatch:
+    inputs:
+      cluster:
+        description: 'Target cluster'
+        required: true
+        default: 'https://rpc.testnet.x1.xyz'
+        type: choice
+        options:
+          - https://rpc.testnet.x1.xyz
+          - https://rpc.mainnet.x1.xyz
+      skip_build:
+        description: 'Skip build (use existing artifacts)'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  SOLANA_CLI_VERSION: 1.18.0
+  ANCHOR_VERSION: 0.30.0
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-action@stable
+        with:
+          toolchain: stable
+
+      - name: Cache Solana CLI
+        uses: actions/cache@v4
+        id: cache-solana
+        with:
+          path: ~/.local/share/solana
+          key: solana-${{ env.SOLANA_CLI_VERSION }}
+
+      - name: Install Solana CLI
+        if: steps.cache-solana.outputs.cache-hit != 'true'
+        run: |
+          sh -c "$(curl -sSfL https://release.solana.com/v${{ env.SOLANA_CLI_VERSION }}/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+
+      - name: Setup Solana Path
+        run: |
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+          solana --version
+
+      - name: Cache Anchor
+        uses: actions/cache@v4
+        id: cache-anchor
+        with:
+          path: ~/.cargo/bin/anchor
+          key: anchor-${{ env.ANCHOR_VERSION }}
+
+      - name: Install Anchor
+        if: steps.cache-anchor.outputs.cache-hit != 'true'
+        run: |
+          cargo install --git https://github.com/coral-xyz/anchor --tag v${{ env.ANCHOR_VERSION }} anchor-cli --locked
+
+      - name: Verify Anchor
+        run: anchor --version
+
+      - name: Setup Solana Keypair
+        run: |
+          mkdir -p ~/.config/solana
+          echo "${{ secrets.SOLANA_KEYPAIR }}" | base64 -d > ~/.config/solana/id.json
+          chmod 600 ~/.config/solana/id.json
+          solana config set --keypair ~/.config/solana/id.json
+          solana config set --url ${{ github.event.inputs.cluster }}
+          echo "Deployer: $(solana address)"
+
+      - name: Install Node Dependencies
+        run: |
+          cd app && npm ci
+
+      - name: Build Program
+        if: ${{ !github.event.inputs.skip_build }}
+        run: |
+          anchor build
+          echo "Program size:"
+          ls -lh target/deploy/*.so
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: |
+            target/deploy/*.so
+            target/idl/*.json
+            target/types/*.ts
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-action@stable
+        with:
+          toolchain: stable
+
+      - name: Restore Solana CLI Cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/solana
+          key: solana-${{ env.SOLANA_CLI_VERSION }}
+
+      - name: Setup Solana Path
+        run: |
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+          solana --version
+
+      - name: Restore Anchor Cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/anchor
+          key: anchor-${{ env.ANCHOR_VERSION }}
+
+      - name: Setup Solana Keypair
+        run: |
+          mkdir -p ~/.config/solana
+          echo "${{ secrets.SOLANA_KEYPAIR }}" | base64 -d > ~/.config/solana/id.json
+          chmod 600 ~/.config/solana/id.json
+          solana config set --keypair ~/.config/solana/id.json
+          solana config set --url ${{ github.event.inputs.cluster }}
+
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+          path: target/
+
+      - name: Deploy Program
+        id: deploy
+        run: |
+          echo "Deploying to ${{ github.event.inputs.cluster }}..."
+          
+          # Get deployer address
+          DEPLOYER=$(solana address)
+          echo "deployer=$DEPLOYER" >> $GITHUB_OUTPUT
+          
+          # Check balance
+          BALANCE=$(solana balance | awk '{print $1}')
+          echo "Deployer balance: $BALANCE XNT"
+          
+          if (( $(echo "$BALANCE < 2.0" | bc -l) )); then
+            echo "::error::Insufficient balance. Need at least 2 XNT for deployment."
+            exit 1
+          fi
+          
+          # Deploy
+          anchor deploy --provider.cluster ${{ github.event.inputs.cluster }} 2>&1 | tee deploy.log
+          
+          # Extract program ID
+          PROGRAM_ID=$(grep -oP 'Program Id: \K[\w]+' deploy.log || echo "")
+          if [ -z "$PROGRAM_ID" ]; then
+            PROGRAM_ID=$(solana address -k target/deploy/x1safe_put_staking-keypair.json)
+          fi
+          echo "program_id=$PROGRAM_ID" >> $GITHUB_OUTPUT
+          
+          echo "Deployed Program ID: $PROGRAM_ID"
+
+      - name: Upload Deploy Log
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-log
+          path: deploy.log
+
+      - name: Summary
+        run: |
+          echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Cluster | ${{ github.event.inputs.cluster }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Deployer | ${{ steps.deploy.outputs.deployer }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Program ID | ${{ steps.deploy.outputs.program_id }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Program ID: \`${{ steps.deploy.outputs.program_id }}\`" >> $GITHUB_STEP_SUMMARY
