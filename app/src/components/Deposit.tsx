@@ -1,26 +1,19 @@
 import { useState, useEffect } from 'react'
-import { useConnection, useWallet } from '@solana/wallet-adapter-react'
-import {
-  Transaction, SystemProgram, SYSVAR_RENT_PUBKEY,
-  TransactionInstruction,
-} from '@solana/web3.js'
+import { useConnection, useWallet, useAnchorWallet } from '@solana/wallet-adapter-react'
+import { Transaction } from '@solana/web3.js'
+import { AnchorProvider } from '@coral-xyz/anchor'
 import {
   getAssociatedTokenAddressSync, getAccount,
   createAssociatedTokenAccountInstruction,
 } from '@solana/spl-token'
 import {
-  PROGRAM_ID, ASSETS, EXPLORER,
-  getVaultPDA, getPutMintPDA, getAssetConfigPDA,
+  ASSETS, EXPLORER,
+  getProgram, getVaultPDA, getPutMintPDA, getAssetConfigPDA,
   getReserveAccount, getUserPositionPDA,
   toBaseUnits, getTokenBalance,
   TOKEN_PROGRAM_ID, getMintTokenProgram,
 } from '../lib/vault'
-import { sha256 } from '@noble/hashes/sha256'
 import { AssetLogo } from './TokenLogo'
-
-function disc(name: string): Buffer {
-  return Buffer.from(sha256(new TextEncoder().encode('global:' + name))).subarray(0, 8)
-}
 
 const ASSET_NAMES:  Record<string, string> = { USDCX: 'USD Coin (X1)', XNT: 'XNT Token', XEN: 'XEN Token' }
 const ASSET_COLORS: Record<string, string> = { USDCX: 'var(--usdcx-color)', XNT: 'var(--xnt-color)', XEN: 'var(--xen-color)' }
@@ -28,7 +21,8 @@ const ASSET_CLASS:  Record<string, string> = { USDCX: 'usdcx', XNT: 'xnt', XEN: 
 
 export function Deposit() {
   const { connection } = useConnection()
-  const wallet = useWallet()
+  const wallet         = useWallet()
+  const anchorWallet   = useAnchorWallet()
   const [assetKey, setAssetKey] = useState('XNT')
   const [amount,   setAmount]   = useState('')
   const [balances, setBalances] = useState<Record<string, number>>({})
@@ -55,67 +49,66 @@ export function Deposit() {
   const x1safeAmount = usdValue * 100  // 1 USD = 100 X1SAFE_PUT
 
   const handleDeposit = async () => {
-    if (!wallet.publicKey || !wallet.signTransaction || !amount) return
+    if (!wallet.publicKey || !anchorWallet || !amount) return
     setLoading(true); setError(''); setTxSig('')
     try {
+      const provider       = new AnchorProvider(connection, anchorWallet, { commitment: 'confirmed' })
+      const program        = getProgram(provider)
       const vault          = getVaultPDA()
       const assetConfig    = getAssetConfigPDA(asset.mint)
       const reserveAccount = getReserveAccount(asset.mint)
       const putMint        = getPutMintPDA()
       const userPosition   = getUserPositionPDA(wallet.publicKey)
-      // Detect correct token program for asset mint (XNM = Token-2022)
+
+      // Detect correct token program per mint (XNM = Token-2022)
       const assetTokenProg = await getMintTokenProgram(connection, asset.mint)
       const userAssetAta   = getAssociatedTokenAddressSync(asset.mint, wallet.publicKey, false, assetTokenProg)
       const userPutAta     = getAssociatedTokenAddressSync(putMint, wallet.publicKey, false, TOKEN_PROGRAM_ID)
 
-      const tx = new Transaction()
+      // Pre-create ATAs if needed (separate transactions)
+      const setupTx = new Transaction()
+      let needSetup = false
 
       try { await getAccount(connection, reserveAccount, 'confirmed', assetTokenProg) } catch {
-        tx.add(createAssociatedTokenAccountInstruction(
-          wallet.publicKey, reserveAccount, vault, asset.mint,
-          assetTokenProg
+        setupTx.add(createAssociatedTokenAccountInstruction(
+          wallet.publicKey, reserveAccount, vault, asset.mint, assetTokenProg
         ))
+        needSetup = true
       }
       try { await getAccount(connection, userPutAta, 'confirmed', TOKEN_PROGRAM_ID) } catch {
-        tx.add(createAssociatedTokenAccountInstruction(
-          wallet.publicKey, userPutAta, wallet.publicKey, putMint,
-          TOKEN_PROGRAM_ID
+        setupTx.add(createAssociatedTokenAccountInstruction(
+          wallet.publicKey, userPutAta, wallet.publicKey, putMint, TOKEN_PROGRAM_ID
         ))
+        needSetup = true
       }
 
-      const amountBN = toBaseUnits(numAmount, asset.decimals)
-      const data = Buffer.alloc(16)
-      disc('deposit').copy(data, 0)
-      data.writeBigUInt64LE(BigInt(amountBN.toString()), 8)
+      if (needSetup) {
+        setupTx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash
+        setupTx.feePayer = wallet.publicKey
+        const signed = await wallet.signTransaction!(setupTx)
+        await connection.confirmTransaction(
+          await connection.sendRawTransaction(signed.serialize()), 'confirmed'
+        )
+      }
 
-      tx.add(new TransactionInstruction({
-        programId: PROGRAM_ID,
-        keys: [
-          { pubkey: wallet.publicKey, isSigner: true,  isWritable: true  },
-          { pubkey: vault,            isSigner: false, isWritable: true  },
-          { pubkey: assetConfig,      isSigner: false, isWritable: true  },
-          { pubkey: reserveAccount,   isSigner: false, isWritable: true  },
-          { pubkey: userAssetAta,     isSigner: false, isWritable: true  },
-          { pubkey: putMint,          isSigner: false, isWritable: true  },
-          { pubkey: userPutAta,       isSigner: false, isWritable: true  },
-          { pubkey: userPosition,     isSigner: false, isWritable: true  },
-          { pubkey: assetTokenProg,          isSigner: false, isWritable: false },
-          { pubkey: TOKEN_PROGRAM_ID,        isSigner: false, isWritable: false },
-          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-          { pubkey: SYSVAR_RENT_PUBKEY,      isSigner: false, isWritable: false },
-        ],
-        data,
-      }))
+      // Anchor deposit — IDL handles correct account ordering
+      const sig = await program.methods
+        .deposit(toBaseUnits(numAmount, asset.decimals))
+        .accounts({
+          user:             wallet.publicKey,
+          vault,
+          assetConfig,
+          reserveAccount,
+          userAssetAccount: userAssetAta,
+          putMint,
+          userPutAta,
+          userPosition,
+          tokenProgram:     assetTokenProg,
+        })
+        .rpc()
 
-      tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash
-      tx.feePayer = wallet.publicKey
-      const signed = await wallet.signTransaction(tx)
-      const rawTx  = signed.serialize()
-      const sig    = await connection.sendRawTransaction(rawTx)
-      await connection.confirmTransaction(sig, 'confirmed')
       setTxSig(sig)
       setAmount('')
-      // Refresh balances
       const updated: Record<string, number> = {}
       for (const a of ASSETS) updated[a.key] = await getTokenBalance(connection, wallet.publicKey!, a.mint)
       setBalances(updated)
