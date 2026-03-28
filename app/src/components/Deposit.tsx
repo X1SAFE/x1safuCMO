@@ -5,7 +5,6 @@ import {
   TransactionInstruction,
 } from '@solana/web3.js'
 import {
-  TOKEN_PROGRAM_ID,
   getAssociatedTokenAddressSync, getAccount,
   createAssociatedTokenAccountInstruction,
 } from '@solana/spl-token'
@@ -14,6 +13,7 @@ import {
   getVaultPDA, getPutMintPDA, getAssetConfigPDA,
   getReserveAccount, getUserPositionPDA,
   toBaseUnits, getTokenBalance,
+  TOKEN_PROGRAM_ID, getMintTokenProgram,
 } from '../lib/vault'
 import { sha256 } from '@noble/hashes/sha256'
 import { AssetLogo } from './TokenLogo'
@@ -63,21 +63,23 @@ export function Deposit() {
       const reserveAccount = getReserveAccount(asset.mint)
       const putMint        = getPutMintPDA()
       const userPosition   = getUserPositionPDA(wallet.publicKey)
-      const userAssetAta   = getAssociatedTokenAddressSync(asset.mint, wallet.publicKey, false, TOKEN_PROGRAM_ID)
+      // Detect correct token program for asset mint (XNM = Token-2022)
+      const assetTokenProg = await getMintTokenProgram(connection, asset.mint)
+      const userAssetAta   = getAssociatedTokenAddressSync(asset.mint, wallet.publicKey, false, assetTokenProg)
       const userPutAta     = getAssociatedTokenAddressSync(putMint, wallet.publicKey, false, TOKEN_PROGRAM_ID)
 
       const tx = new Transaction()
 
-      try { await getAccount(connection, reserveAccount) } catch {
+      try { await getAccount(connection, reserveAccount, 'confirmed', assetTokenProg) } catch {
         tx.add(createAssociatedTokenAccountInstruction(
           wallet.publicKey, reserveAccount, vault, asset.mint,
-          undefined, TOKEN_PROGRAM_ID
+          assetTokenProg
         ))
       }
-      try { await getAccount(connection, userPutAta) } catch {
+      try { await getAccount(connection, userPutAta, 'confirmed', TOKEN_PROGRAM_ID) } catch {
         tx.add(createAssociatedTokenAccountInstruction(
           wallet.publicKey, userPutAta, wallet.publicKey, putMint,
-          undefined, TOKEN_PROGRAM_ID
+          TOKEN_PROGRAM_ID
         ))
       }
 
@@ -97,7 +99,8 @@ export function Deposit() {
           { pubkey: putMint,          isSigner: false, isWritable: true  },
           { pubkey: userPutAta,       isSigner: false, isWritable: true  },
           { pubkey: userPosition,     isSigner: false, isWritable: true  },
-          { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+          { pubkey: assetTokenProg,          isSigner: false, isWritable: false },
+          { pubkey: TOKEN_PROGRAM_ID,        isSigner: false, isWritable: false },
           { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
           { pubkey: SYSVAR_RENT_PUBKEY,      isSigner: false, isWritable: false },
         ],

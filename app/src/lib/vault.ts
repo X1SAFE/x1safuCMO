@@ -1,6 +1,8 @@
 import { Connection, PublicKey } from '@solana/web3.js'
 import { AnchorProvider, Program, BN } from '@coral-xyz/anchor'
-import { getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from '@solana/spl-token'
+import {
+  getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID,
+} from '@solana/spl-token'
 
 // ── Config ────────────────────────────────────────────────────────────────────
 export const PROGRAM_ID = new PublicKey('3YqHMLwVVChoSAaN6SjVeKLwKNFN3WQMJ1tFGC2N7Upw')
@@ -552,3 +554,38 @@ export function toBaseUnits(amount: number, decimals: number): BN {
 export function toPriceOnChain(priceUsd: number): BN {
   return new BN(Math.round(priceUsd * 1_000_000))
 }
+
+// ── Token Program Detection ───────────────────────────────────────────────────
+// XNM is Token-2022; everything else is legacy Token. Cache per mint.
+const _mintProgramCache = new Map<string, PublicKey>()
+
+export async function getMintTokenProgram(
+  connection: Connection,
+  mint: PublicKey,
+): Promise<PublicKey> {
+  const key = mint.toBase58()
+  if (_mintProgramCache.has(key)) return _mintProgramCache.get(key)!
+  try {
+    const info = await connection.getAccountInfo(mint)
+    const prog = (info && info.owner.equals(TOKEN_2022_PROGRAM_ID))
+      ? TOKEN_2022_PROGRAM_ID
+      : TOKEN_PROGRAM_ID
+    _mintProgramCache.set(key, prog)
+    return prog
+  } catch {
+    return TOKEN_PROGRAM_ID
+  }
+}
+
+/** ATA address using auto-detected token program */
+export async function getAtaForMint(
+  connection: Connection,
+  mint: PublicKey,
+  owner: PublicKey,
+): Promise<PublicKey> {
+  const prog = await getMintTokenProgram(connection, mint)
+  return getAssociatedTokenAddressSync(mint, owner, false, prog)
+}
+
+export { TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID, getAssociatedTokenAddressSync }
+export type { Connection }

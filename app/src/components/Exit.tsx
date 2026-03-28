@@ -1,13 +1,31 @@
 import { useState, useEffect } from 'react'
 import { useConnection, useWallet, useAnchorWallet } from '@solana/wallet-adapter-react'
 import { AnchorProvider } from '@coral-xyz/anchor'
-import { getAssociatedTokenAddress, createAssociatedTokenAccountInstruction, getAccount } from '@solana/spl-token'
-import { Transaction } from '@solana/web3.js'
+import {
+  getAssociatedTokenAddress, createAssociatedTokenAccountInstruction, getAccount,
+  TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID,
+  getAssociatedTokenAddressSync,
+} from '@solana/spl-token'
+import { Transaction, PublicKey } from '@solana/web3.js'
 import {
   ASSETS, EXPLORER, IS_TESTNET,
   getProgram, getVaultPDA, getSafeMintPDA, getReserveAccount,
   fetchVaultState, getTokenBalance, toBaseUnits,
 } from '../lib/vault'
+
+// Detect which token program owns a given mint
+async function getMintTokenProgram(
+  connection: import('@solana/web3.js').Connection,
+  mint: PublicKey
+): Promise<PublicKey> {
+  try {
+    const info = await connection.getAccountInfo(mint)
+    if (!info) return TOKEN_PROGRAM_ID
+    return info.owner.equals(TOKEN_2022_PROGRAM_ID) ? TOKEN_2022_PROGRAM_ID : TOKEN_PROGRAM_ID
+  } catch {
+    return TOKEN_PROGRAM_ID
+  }
+}
 
 export function Exit() {
   const { connection } = useConnection()
@@ -51,13 +69,18 @@ export function Exit() {
       // Build remaining accounts: [reserve_0, user_ata_0, ...] for each asset
       const remainingAccounts: { pubkey: import('@solana/web3.js').PublicKey; isWritable: boolean; isSigner: boolean }[] = []
       for (const a of ASSETS) {
-        const reserveAcct = getReserveAccount(a.mint)
-        const userAta     = await getAssociatedTokenAddress(a.mint, wallet.publicKey)
+        // Detect correct token program (Token vs Token-2022) per mint
+        const tokenProgram = await getMintTokenProgram(connection, a.mint)
+        const reserveAcct  = getReserveAccount(a.mint)
+        const userAta      = getAssociatedTokenAddressSync(a.mint, wallet.publicKey, false, tokenProgram)
 
-        // Create user ATA if needed
-        try { await getAccount(connection, userAta) } catch {
+        // Create user ATA if needed — using correct token program
+        try { await getAccount(connection, userAta, 'confirmed', tokenProgram) } catch {
           const tx = new Transaction()
-          tx.add(createAssociatedTokenAccountInstruction(wallet.publicKey, userAta, wallet.publicKey, a.mint))
+          tx.add(createAssociatedTokenAccountInstruction(
+            wallet.publicKey, userAta, wallet.publicKey, a.mint,
+            tokenProgram
+          ))
           tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash
           tx.feePayer = wallet.publicKey
           const signed = await wallet.signTransaction!(tx)
