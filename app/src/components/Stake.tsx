@@ -8,6 +8,7 @@ import {
   getProgram, getStakePoolPDA, getSafeMintPDA, getSx1safeMintPDA,
   getStakeReservePDA, getRewardReservePDA, getUserStakePDA,
   fetchStakePool, fetchUserStake, getTokenBalance, toBaseUnits,
+  saveStakeTimestamp, getStakeTimestamp, estimateAccruedRewards,
 } from '../lib/vault'
 
 export function Stake() {
@@ -86,6 +87,8 @@ export function Stake() {
         })
         .rpc()
 
+      // Save stake timestamp locally for off-chain reward estimation
+      if (wallet.publicKey) saveStakeTimestamp(wallet.publicKey)
       setTxSig(tx); setAmount('')
     } catch (e: any) {
       setError(e?.message || 'Transaction failed')
@@ -157,11 +160,19 @@ export function Stake() {
     } finally { setLoading(false) }
   }
 
-  const apyPct     = stakePool ? (stakePool.apyBps / 100).toFixed(1) : '—'
+  const apyPct      = stakePool ? (stakePool.apyBps / 100).toFixed(1) : '—'
   const totalStaked = stakePool ? (stakePool.totalStaked / 1e6).toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—'
-  const myStaked   = userStake ? (userStake.stakedAmount / 1e6).toFixed(4) : '0'
-  const pending    = userStake ? (userStake.rewardsPending / 1e6).toFixed(6) : '0'
-  const maxBal     = mode === 'stake' ? safeBalance : sxBalance
+  const myStaked    = userStake ? (userStake.stakedAmount / 1e6).toFixed(4) : '0'
+
+  // Off-chain accrued estimate (accumulates continuously)
+  const stakeTs         = wallet.publicKey ? getStakeTimestamp(wallet.publicKey) : null
+  const apyBps          = stakePool ? stakePool.apyBps : 0
+  const onChainPending  = userStake ? userStake.rewardsPending / 1e6 : 0
+  const accrued         = (userStake && stakeTs && apyBps > 0)
+    ? estimateAccruedRewards(userStake.stakedAmount, apyBps, stakeTs) / 1e6
+    : 0
+  const pending         = (onChainPending + accrued).toFixed(6)
+  const maxBal          = mode === 'stake' ? safeBalance : sxBalance
 
   if (!wallet.connected) {
     return (

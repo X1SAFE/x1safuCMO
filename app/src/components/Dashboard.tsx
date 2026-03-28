@@ -5,6 +5,7 @@ import {
   fetchVaultState, fetchUserPosition, fetchStakePool, fetchUserStake,
   getTokenBalance, getPutMintPDA, getSafeMintPDA, getSx1safeMintPDA,
   fetchAssetPrices, calcX1SAFE,
+  getStakeTimestamp, estimateAccruedRewards,
 } from '../lib/vault'
 
 import { AssetLogo } from './TokenLogo'
@@ -73,7 +74,14 @@ export function Dashboard() {
   const myPut           = putBal
   const myFree          = safeBal
   const myStaked        = userStake ? userStake.stakedAmount / 1e6 : 0
-  const myPending       = userStake ? userStake.rewardsPending / 1e6 : 0
+  // Rewards: on-chain pending + off-chain accrued estimate (not yet deposited by keeper)
+  const onChainPending  = userStake ? userStake.rewardsPending / 1e6 : 0
+  const stakeTs         = wallet.publicKey ? getStakeTimestamp(wallet.publicKey) : null
+  const apyBps          = stakePool ? stakePool.apyBps : 0
+  const accrued         = (userStake && stakeTs && apyBps > 0)
+    ? estimateAccruedRewards(userStake.stakedAmount, apyBps, stakeTs) / 1e6
+    : 0
+  const myPending       = onChainPending + accrued
   const apyPct          = stakePool ? (stakePool.apyBps / 100).toFixed(1) : '—'
   const totalWalletUsd  = ASSETS.reduce((s, a) => s + (balances[a.key] || 0) * (prices[a.key] || 0), 0)
 

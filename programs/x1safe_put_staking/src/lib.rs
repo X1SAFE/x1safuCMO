@@ -8,6 +8,7 @@ pub mod error;
 pub mod utils;
 
 use instructions::*;
+use instructions::admin::UpdateTokenVault;
 use state::*;
 use error::*;
 
@@ -22,8 +23,9 @@ pub mod x1safe_put_staking {
         ctx: Context<InitializeVault>,
         x1safe_decimals: u8,
         x1safe_put_decimals: u8,
+        apy_bps: u16,
     ) -> Result<()> {
-        instructions::initialize::handler(ctx, x1safe_decimals, x1safe_put_decimals)
+        instructions::initialize::handler(ctx, x1safe_decimals, x1safe_put_decimals, apy_bps)
     }
 
     /// Deposit supported tokens and mint X1SAFE-PUT
@@ -73,6 +75,34 @@ pub mod x1safe_put_staking {
         instructions::claim_rewards::handler(ctx)
     }
 
+    /// Withdraw X1SAFE from vesting to user wallet (for transfer/trade)
+    /// Peg: 1 X1SAFE = $0.01
+    pub fn withdraw_x1safe(
+        ctx: Context<WithdrawX1safe>,
+    ) -> Result<()> {
+        instructions::withdraw_x1safe::handler(ctx)
+    }
+
+    /// Redeem X1SAFE-PUT for X1SAFE (burn PUT, receive X1SAFE)
+    /// Ratio: 1 X1SAFE-PUT = 1 X1SAFE (1:1 token swap)
+    /// Mất quyền Exit - cannot retrieve original collateral
+    pub fn redeem_x1safe(
+        ctx: Context<RedeemX1safe>,
+        x1safe_put_amount: u64,
+    ) -> Result<()> {
+        instructions::redeem_x1safe::handler(ctx, x1safe_put_amount)
+    }
+
+    /// Accrue X1SAFE rewards for a staker (permissionless crank).
+    /// Computes rewards = staked * elapsed * apy_bps / SECONDS_PER_YEAR / 10_000
+    /// and mints X1SAFE into the reward reserve.
+    /// Call before claim_x1safe_rewards to get the latest pending amount.
+    pub fn accrue_rewards(
+        ctx: Context<AccrueRewards>,
+    ) -> Result<()> {
+        instructions::accrue_rewards::handler(ctx)
+    }
+
     /// Process fee split: 60% to stakers, 20% buyback, 20% treasury
     pub fn process_fees(
         ctx: Context<ProcessFees>,
@@ -97,5 +127,20 @@ pub mod x1safe_put_staking {
         new_oracle: Pubkey,
     ) -> Result<()> {
         instructions::admin::update_oracle(ctx, new_oracle)
+    }
+
+    /// Fix token vault account for a supported token (admin only)
+    pub fn update_token_vault(
+        ctx: Context<UpdateTokenVault>,
+    ) -> Result<()> {
+        instructions::admin::update_token_vault(ctx)
+    }
+
+    /// Set APY in basis points (admin only). e.g. 1000 = 10% APY
+    pub fn set_apy(
+        ctx: Context<SetApy>,
+        apy_bps: u16,
+    ) -> Result<()> {
+        instructions::admin::set_apy(ctx, apy_bps)
     }
 }

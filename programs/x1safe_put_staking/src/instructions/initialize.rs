@@ -16,7 +16,7 @@ pub struct InitializeVault<'info> {
         seeds = [seeds::VAULT_STATE],
         bump
     )]
-    pub vault_state: Account<'info, VaultState>,
+    pub vault_state: Box<Account<'info, VaultState>>,
     
     /// X1SAFE mint - will be created by the program
     #[account(
@@ -25,7 +25,7 @@ pub struct InitializeVault<'info> {
         mint::decimals = 6,
         mint::authority = vault_state,
     )]
-    pub x1safe_mint: Account<'info, Mint>,
+    pub x1safe_mint: Box<Account<'info, Mint>>,
     
     /// X1SAFE-PUT mint - will be created by the program
     #[account(
@@ -34,10 +34,10 @@ pub struct InitializeVault<'info> {
         mint::decimals = 6,
         mint::authority = vault_state,
     )]
-    pub x1safe_put_mint: Account<'info, Mint>,
+    pub x1safe_put_mint: Box<Account<'info, Mint>>,
     
     /// USDC.X mint for fee distribution
-    pub usdc_mint: Account<'info, Mint>,
+    pub usdc_mint: Box<Account<'info, Mint>>,
     
     /// Treasury account for fee collection
     /// CHECK: Treasury address validated in handler
@@ -63,6 +63,7 @@ pub fn handler(
     ctx: Context<InitializeVault>,
     x1safe_decimals: u8,
     x1safe_put_decimals: u8,
+    apy_bps: u16,
 ) -> Result<()> {
     let vault_state = &mut ctx.accounts.vault_state;
     let bump = ctx.bumps.vault_state;
@@ -89,9 +90,10 @@ pub fn handler(
     vault_state.buyback_fee_share = 2000;   // 20%
     vault_state.treasury_fee_share = 2000;  // 20%
     vault_state.x1safe_price_usd = 10_000;  // $0.01 * 1e6
+    vault_state.apy_bps = apy_bps;          // e.g. 1000 = 10% APY
     vault_state.bump = bump;
     vault_state.paused = false;
-    vault_state.reserved = [0; 32];
+    vault_state.reserved = [0; 30];
     
     // Validate fee split
     require!(vault_state.validate_fee_split(), X1safeError::InvalidFeeSplit);

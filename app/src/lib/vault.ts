@@ -444,6 +444,45 @@ export async function fetchUserStake(connection: Connection, user: PublicKey) {
   } catch { return null }
 }
 
+// ── Stake timestamp ─────────────────────────────────────────────────────────
+// We store stakeTimestamp in localStorage so the UI can show accrued rewards
+// even before depositRewards is called on-chain.
+const STAKE_TS_KEY = 'x1safe_stake_ts'
+
+export function saveStakeTimestamp(user: PublicKey) {
+  const ts = Math.floor(Date.now() / 1000)
+  localStorage.setItem(`${STAKE_TS_KEY}:${user.toBase58()}`, String(ts))
+}
+
+export function getStakeTimestamp(user: PublicKey): number | null {
+  const raw = localStorage.getItem(`${STAKE_TS_KEY}:${user.toBase58()}`)
+  return raw ? Number(raw) : null
+}
+
+/**
+ * Calculate estimated accrued X1SAFE rewards off-chain.
+ * Uses APY bps from the StakePool and elapsed time since stake.
+ *
+ * @param stakedAmount  - raw u64 from StakeAccount (6 decimals)
+ * @param apyBps        - APY in basis points (e.g. 1000 = 10%)
+ * @param stakeTs       - unix timestamp when user staked
+ * @param nowTs         - current unix timestamp (default: now)
+ * @returns estimated X1SAFE rewards in token units (divide by 1e6 for display)
+ */
+export function estimateAccruedRewards(
+  stakedAmount: number,
+  apyBps: number,
+  stakeTs: number,
+  nowTs: number = Math.floor(Date.now() / 1000),
+): number {
+  const SECONDS_PER_YEAR = 365 * 24 * 3600
+  const elapsedSecs = Math.max(0, nowTs - stakeTs)
+  // rewards = stakedAmount * elapsed * apyBps / SECONDS_PER_YEAR / 10_000
+  return Math.floor(
+    (stakedAmount * elapsedSecs * apyBps) / (SECONDS_PER_YEAR * 10_000)
+  )
+}
+
 // ── Token balance ─────────────────────────────────────────────────────────────
 export async function getTokenBalance(
   connection: Connection,

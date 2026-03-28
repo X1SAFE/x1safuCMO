@@ -40,6 +40,10 @@ pub struct VaultState {
     
     /// X1SAFE peg value: 1 X1SAFE = $0.01 (scaled by 1e6 = 10_000)
     pub x1safe_price_usd: u64,
+
+    /// Annual Percentage Yield in basis points (e.g. 1000 = 10% APY)
+    /// Used by accrue_rewards to compute per-second X1SAFE rewards
+    pub apy_bps: u16,
     
     /// Bump seed for PDA
     pub bump: u8,
@@ -48,7 +52,7 @@ pub struct VaultState {
     pub paused: bool,
     
     /// Reserved for future use
-    pub reserved: [u8; 32],
+    pub reserved: [u8; 30],
 }
 
 impl VaultState {
@@ -67,9 +71,10 @@ impl VaultState {
         2 +  // buyback_fee_share
         2 +  // treasury_fee_share
         8 +  // x1safe_price_usd
+        2 +  // apy_bps
         1 +  // bump
         1 +  // paused
-        32;  // reserved
+        30;  // reserved
     
     /// Validate fee split adds up to 100%
     pub fn validate_fee_split(&self) -> bool {
