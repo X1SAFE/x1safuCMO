@@ -14,19 +14,20 @@ import { WalletReadyState }      from '@solana/wallet-adapter-base'
 import '@solana/wallet-adapter-react-ui/styles.css'
 import './App.css'
 
-import { Dashboard }  from './components/Dashboard'
-import { Deposit }    from './components/Deposit'
-import { Withdraw }   from './components/Withdraw'
-import { Exit }       from './components/Exit'
-import { Redeposit }  from './components/Redeposit'
-import { Stake }      from './components/Stake'
+import { Dashboard }   from './components/Dashboard'
+import { Deposit }     from './components/Deposit'
+import { Withdraw }    from './components/Withdraw'
+import { Exit }        from './components/Exit'
+import { Redeposit }   from './components/Redeposit'
+import { Stake }       from './components/Stake'
+import { Whitepaper }  from './components/Whitepaper'
 import { RPC_URL, IS_TESTNET } from './lib/vault'
 
 declare global {
   interface Window { backpack?: any; xnft?: any }
 }
 
-type Tab = 'dashboard' | 'deposit' | 'withdraw' | 'exit' | 'redeposit' | 'stake'
+type Tab = 'dashboard' | 'deposit' | 'withdraw' | 'exit' | 'redeposit' | 'stake' | 'whitepaper'
 
 const TABS_PRIMARY: { key: Tab; label: string; icon: string }[] = [
   { key: 'deposit',   label: 'Deposit',  icon: '↓' },
@@ -34,9 +35,10 @@ const TABS_PRIMARY: { key: Tab; label: string; icon: string }[] = [
   { key: 'dashboard', label: 'Overview', icon: '◈' },
 ]
 const TABS_SECONDARY: { key: Tab; label: string; icon: string }[] = [
-  { key: 'exit',      label: 'Exit',    icon: '✕' },
-  { key: 'redeposit', label: 'Re-lock', icon: '⟳' },
-  { key: 'stake',     label: 'Stake',   icon: '⬡' },
+  { key: 'exit',       label: 'Exit',       icon: '✕' },
+  { key: 'redeposit',  label: 'Re-lock',    icon: '⟳' },
+  { key: 'stake',      label: 'Stake',      icon: '⬡' },
+  { key: 'whitepaper', label: 'Whitepaper', icon: '📄' },
 ]
 
 const SITE_URL = 'https://x1safu-cmo.vercel.app'
@@ -407,7 +409,8 @@ function App() {
         {tab === 'withdraw'  && <Withdraw />}
         {tab === 'exit'      && <Exit />}
         {tab === 'redeposit' && <Redeposit />}
-        {tab === 'stake'     && <Stake />}
+        {tab === 'stake'      && <Stake />}
+        {tab === 'whitepaper' && <Whitepaper />}
       </main>
     </div>
   )
