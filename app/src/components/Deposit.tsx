@@ -6,7 +6,7 @@ import {
 } from '@solana/web3.js'
 import {
   TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync,
-  getAccount, ASSOCIATED_TOKEN_PROGRAM_ID,
+  ASSOCIATED_TOKEN_PROGRAM_ID,
 } from '@solana/spl-token'
 import { sha256 } from '@noble/hashes/sha256'
 import {
@@ -34,7 +34,7 @@ function createATAInstruction(payer: PublicKey, ata: PublicKey, owner: PublicKey
       { pubkey: TOKEN_PROGRAM_ID,        isSigner: false, isWritable: false },
       { pubkey: SYSVAR_RENT_PUBKEY,      isSigner: false, isWritable: false },
     ],
-    data: Buffer.from([0]),
+    data: Buffer.from([1]),  // 1 = CreateIdempotent (safe if ATA already exists)
   })
 }
 
@@ -50,7 +50,7 @@ interface AssetConfig {
 
 const DEPOSIT_ASSETS: AssetConfig[] = [
   { key: 'USDCX', label: 'USDC.X', mint: MINTS.USDCX, decimals: 6, isStable: true,  color: '#2775ca', priceUsd: 1.0  },
-  { key: 'XNT',   label: 'XNT',    mint: MINTS.XNT,   decimals: 9, isStable: false, color: '#9333ea', priceUsd: 0.20 },
+  { key: 'XNT',   label: 'XNT',    mint: MINTS.XNT,   decimals: 9, isStable: false, color: '#9333ea', priceUsd: 0.35 },
 ]
 
 const LOCK_OPTIONS = [
@@ -102,9 +102,10 @@ export function Deposit() {
   const lockOpt  = LOCK_OPTIONS.find(o => o.days === lockDays)!
   const numAmt   = parseFloat(amount) || 0
   const usdValue = numAmt * asset.priceUsd
+  // 1 PUT = $0.01, so PUT amount = USD value ÷ 0.01 = USD value × 100
   const putAmount = asset.isStable
-    ? numAmt                     // USDC.X: 1:1
-    : usdValue                   // XNT: USD value = PUT amount
+    ? numAmt * 100               // USDC.X: 1 USDC = $1 = 100 PUT
+    : Math.floor(usdValue * 100) // XNT: 1 XNT × $0.35 = $0.35 = 35 PUT
 
   useEffect(() => {
     if (!wallet.publicKey) return
@@ -137,14 +138,9 @@ export function Deposit() {
 
       const tx = new Transaction()
 
-      // Create user asset ATA if needed
-      try { await getAccount(connection, userTokenAta, undefined, TOKEN_PROGRAM_ID) } catch {
-        tx.add(createATAInstruction(wallet.publicKey, userTokenAta, wallet.publicKey, asset.mint))
-      }
-      // Create user PUT ATA if needed
-      try { await getAccount(connection, userPutAta, undefined, TOKEN_PROGRAM_ID) } catch {
-        tx.add(createATAInstruction(wallet.publicKey, userPutAta, wallet.publicKey, putMint))
-      }
+      // Always add idempotent ATA creates (instruction 1 = no-op if already exists)
+      tx.add(createATAInstruction(wallet.publicKey, userTokenAta, wallet.publicKey, asset.mint))
+      tx.add(createATAInstruction(wallet.publicKey, userPutAta, wallet.publicKey, putMint))
 
       // Build deposit instruction
       // Args: amount: u64 (8 bytes) + lock_days: u16 (2 bytes)
