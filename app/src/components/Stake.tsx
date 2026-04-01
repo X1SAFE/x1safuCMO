@@ -397,7 +397,6 @@ export function Stake() {
                 {vestingInfo.phases.map((p, i) => {
                   const isUnlocked = now >= p.end_time
                   const isActive   = now >= p.start_time && now < p.end_time
-                  const _isPending  = now < p.start_time
                   return (
                     <div key={i} style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',

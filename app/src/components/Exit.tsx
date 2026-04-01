@@ -38,7 +38,6 @@ function createATAInstruction(payer: PublicKey, ata: PublicKey, owner: PublicKey
 
 const USER_POSITION_SEED   = Buffer.from('user_position')
 const SUPPORTED_TOKEN_SEED = Buffer.from('supported_token')
-const REWARD_POOL_SEED     = Buffer.from('reward_pool')
 
 function getUserPositionPDA(user: PublicKey, tokenMint: PublicKey): PublicKey {
   return PublicKey.findProgramAddressSync(
@@ -54,12 +53,6 @@ function getSupportedTokenPDA(tokenMint: PublicKey): PublicKey {
   )[0]
 }
 
-function getRewardPoolPDA(vaultState: PublicKey): PublicKey {
-  return PublicKey.findProgramAddressSync(
-    [REWARD_POOL_SEED, vaultState.toBuffer()],
-    STAKING_PROGRAM_ID
-  )[0]
-}
 
 // Token vaults created during add_supported_token
 const TOKEN_VAULTS: Record<string, PublicKey> = {
@@ -107,7 +100,6 @@ export function Exit() {
       const userPosition   = getUserPositionPDA(wallet.publicKey, depositMint)
       const supportedToken = getSupportedTokenPDA(depositMint)
       const tokenVault     = TOKEN_VAULTS[depositMint.toBase58()]
-      const rewardPool     = getRewardPoolPDA(vaultState)
 
       if (!tokenVault) throw new Error('Token vault not configured')
 
