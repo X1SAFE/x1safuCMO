@@ -10,11 +10,11 @@ import {
 } from '@solana/spl-token'
 import { sha256 } from '@noble/hashes/sha256'
 import {
-  PROGRAM_ID as STAKING_PROGRAM_ID,
-  VAULT_STATE_PDA as STAKING_VAULT_STATE,
-  X1SAFE_MINT as STAKING_X1SAFE_MINT,
-  X1SAFE_PUT_MINT as STAKING_X1SAFE_PUT_MINT,
-  XNT_MINT, USDC_X_MINT,
+  STAKING_PROGRAM_ID,
+  STAKING_VAULT_STATE,
+  STAKING_X1SAFE_MINT,
+  STAKING_X1SAFE_PUT_MINT,
+  MINTS,
   EXPLORER, IS_TESTNET,
   getTokenBalance, toBaseUnits,
 } from '../lib/vault'
@@ -59,11 +59,11 @@ function getSupportedTokenPDA(tokenMint: PublicKey): PublicKey {
 
 // Token vaults created during add_supported_token
 const TOKEN_VAULTS: Record<string, PublicKey> = {
-  [USDC_X_MINT.toBase58()]: new PublicKey('ApSj1xNGYjEqxSyP4RncrR7FkXwja5dSzGRQW4gvgSRi'),
-  [XNT_MINT.toBase58()]:   new PublicKey('FUHno7PbvQbqoXSektfRBfjuPDiN75SdX2R2Hgncaqjf'),
+  [MINTS.USDCX.toBase58()]: new PublicKey('ApSj1xNGYjEqxSyP4RncrR7FkXwja5dSzGRQW4gvgSRi'),
+  [MINTS.XNT.toBase58()]:   new PublicKey('FUHno7PbvQbqoXSektfRBfjuPDiN75SdX2R2Hgncaqjf'),
 }
 
-const DEPOSIT_MINTS = [XNT_MINT, USDC_X_MINT]
+const DEPOSIT_MINTS = [MINTS.XNT, MINTS.USDCX]
 
 export function Exit() {
   const { connection } = useConnection()
@@ -75,15 +75,13 @@ export function Exit() {
   const [error,       setError]       = useState('')
   const [putBalance,  setPutBalance]  = useState(0)
   const [showConfirm, setShowConfirm] = useState(false)
-  const [depositMint, setDepositMint] = useState<PublicKey>(XNT_MINT)
+  const [depositMint, setDepositMint] = useState<PublicKey>(MINTS.XNT)
 
   const numAmt = parseFloat(amount) || 0
 
   const load = async () => {
     if (!wallet.publicKey) return
-    const putAta = getAssociatedTokenAddressSync(STAKING_X1SAFE_PUT_MINT, wallet.publicKey, false, TOKEN_PROGRAM_ID)
-    const putRaw = await getTokenBalance(connection, putAta)
-    const put = putRaw / 1e6
+    const put = await getTokenBalance(connection, wallet.publicKey, STAKING_X1SAFE_PUT_MINT)
     setPutBalance(put)
     // Find active user_position
     for (const mint of DEPOSIT_MINTS) {
@@ -257,7 +255,7 @@ export function Exit() {
           <div className="conversion-divider" />
           <div className="conversion-row">
             <span className="label">💰 Collateral về</span>
-            <span className="value" style={{ color: 'var(--success)' }}>Proportional {depositMint.equals(USDC_X_MINT) ? 'USDC.X' : 'XNT'}</span>
+            <span className="value" style={{ color: 'var(--success)' }}>Proportional {depositMint.equals(MINTS.USDCX) ? 'USDC.X' : 'XNT'}</span>
           </div>
           <div className="conversion-row">
             <span className="label">⬡ Mint vào reward pool</span>
