@@ -1,0 +1,12 @@
+node_modules
+target
+.git
+programs
+tests
+scripts
+docs
+fee-processor
+Cargo.toml
+Cargo.lock
+Anchor.toml
+app/node_modules
